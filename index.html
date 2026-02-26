@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Scanner Presensi SMPN 1 Maba</title>
+  <title>Scanner Presensi</title>
   
   <link rel="icon" type="image/png" href="https://img.icons8.com/color/512/qr-code.png">
   <link rel="apple-touch-icon" href="https://img.icons8.com/color/512/qr-code.png">
@@ -43,8 +43,8 @@
   </style>
 </head>
 <body>
-  <h1>SCANNER PRESENSI</h1>
-  <p class="subtitle">Mode Pos Satpam / Gerbang</p>
+  <h1>SCAN PRESENSI</h1>
+  <p class="subtitle">MODE POS</p>
   
   <div id="reader-container">
     <div id="reader"></div>
@@ -108,24 +108,34 @@
         params.append("lat", userLat);
         params.append("lng", userLng);
 
-        fetch(scriptURL, { method: "POST", body: params, mode: "no-cors" })
-        .then(() => {
-          // 4. Jika sukses, hilangkan loading, tampilkan pesan Berhasil
+        // Mengirim Data ke Google (Penutup mata "no-cors" DIHAPUS)
+        fetch(scriptURL, { method: "POST", body: params })
+        .then(response => response.text()) // Membaca teks balasan dari Google Script
+        .then(pesanDariServer => {
           loadingOverlay.style.display = 'none';
-          successBox.style.display = 'block';
-          successBox.innerHTML = "✅ Presensi Berhasil Dicatat<br><small>" + decodedText + "</small>";
           dbStatus.innerText = "Menunggu Scan...";
           
-          // 5. Lanjutkan scanner setelah 2.5 detik
+          // Cek apakah pesannya menandakan SUKSES (Berisi kata Berhasil / Hadir / Terlambat)
+          if (pesanDariServer.includes("Berhasil") || pesanDariServer.includes("Hadir") || pesanDariServer.includes("Terlambat") || pesanDariServer.includes("Tepat")) {
+            successBox.style.display = 'block';
+            successBox.innerHTML = "✅ " + pesanDariServer;
+          } else {
+            // Jika DITOLAK (Kejauhan, Dobel Scan, Jam Tutup, NIP Salah, dll)
+            errorBox.style.display = 'block';
+            errorBox.innerHTML = "❌ " + pesanDariServer;
+          }
+          
+          // Beri waktu tampil 3,5 detik agar guru sempat membaca pesannya
           setTimeout(() => { 
             successBox.style.display = 'none'; 
+            errorBox.style.display = 'none';
             html5QrcodeScanner.resume(); 
-          }, 2500);
+          }, 3500);
         })
         .catch(err => {
           loadingOverlay.style.display = 'none';
           errorBox.style.display = 'block';
-          errorBox.innerHTML = "Gagal Kirim: Cek Internet Anda";
+          errorBox.innerHTML = "Gagal Koneksi: Pastikan Internet Aktif";
           dbStatus.innerText = "Menunggu Scan...";
           
           setTimeout(() => { 
