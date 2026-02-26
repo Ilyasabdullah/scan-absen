@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Scanner Presensi SMPN 1 Maba</title>
+  
+  <link rel="icon" type="image/png" href="https://img.icons8.com/color/512/qr-code.png">
+  <link rel="apple-touch-icon" href="https://img.icons8.com/color/512/qr-code.png">
+
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    body { background-color: #0f141e; color: #ffffff; font-family: sans-serif; margin: 0; padding: 20px; text-align: center; }
+    h1 { color: #2ecc71; margin-bottom: 5px; font-size: 24px; }
+    .subtitle { color: #8b9bb4; font-size: 14px; margin-bottom: 25px; }
+    
+    /* Container Kamera dibuat Relative untuk tempat Overlay */
+    #reader-container { background-color: #000000; border-radius: 12px; padding: 5px; margin: 0 auto; max-width: 400px; position: relative; }
+    #reader { width: 100%; border-radius: 8px; overflow: hidden; border: 2px solid #2ecc71; }
+    
+    /* ANIMASI LOADING OVERLAY */
+    #loading-overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.85); z-index: 10; border-radius: 12px;
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+    }
+    .spinner {
+      border: 5px solid #3a4556; border-top: 5px solid #2ecc71;
+      border-radius: 50%; width: 50px; height: 50px;
+      animation: spin 1s linear infinite; margin-bottom: 15px;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .loading-text { color: #2ecc71; font-weight: bold; font-size: 16px; letter-spacing: 1px;}
+
+    #error-box { background-color: #1e2532; color: #ff6b6b; padding: 15px; border-radius: 8px; margin: 20px auto; max-width: 400px; display: none; font-size: 14px; border: 1px solid #3a4556; }
+    #success-box { background-color: #d4edda; color: #155724; padding: 15px; border-radius: 8px; margin: 20px auto; max-width: 400px; display: none; font-weight: bold; }
+    
+    .btn-kamera { background-color: #2980b9; color: white; border: none; padding: 10px 20px; font-size: 14px; border-radius: 6px; cursor: pointer; margin-top: 15px; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: 0.2s; }
+    .btn-kamera:active { background-color: #1f6391; transform: translateY(2px); }
+    
+    .footer-status { color: #5c6b82; font-size: 12px; margin-top: 20px; line-height: 1.8; }
+  </style>
+</head>
+<body>
+  <h1>SCANNER PRESENSI</h1>
+  <p class="subtitle">Mode Pos Satpam / Gerbang</p>
+  
+  <div id="reader-container">
+    <div id="reader"></div>
+    <div id="loading-overlay">
+      <div class="spinner"></div>
+      <div class="loading-text">Memproses...</div>
+    </div>
+  </div>
+  
+  <button class="btn-kamera" onclick="gantiKamera()">🔄 Ganti Kamera</button>
+
+  <div id="error-box"></div>
+  <div id="success-box"></div>
+  <div class="footer-status">
+    <span id="cam-status">Kamera: Menyiapkan...</span><br>
+    <span id="db-status">Menunggu Scan...</span><br>
+    <span id="gps-status">GPS: Memeriksa Lokasi...</span>
+  </div>
+
+  <script>
+    // MASUKKAN URL GOOGLE SCRIPT (/exec) ANDA DI SINI
+    const scriptURL = "https://script.google.com/macros/s/AKfycbzfo33r7wnYx5qosu2nnprRtlrZdbnzKh8R421p2zaMvbPCbYI5Bu92Xo4pv56mthxPNg/exec"; 
+
+    const beepSound = new Audio("https://cdn.pixabay.com/download/audio/2021/08/04/audio_0625c1539c.mp3");
+
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const errorBox = document.getElementById('error-box');
+    const successBox = document.getElementById('success-box');
+    const dbStatus = document.getElementById('db-status');
+    const gpsStatus = document.getElementById('gps-status');
+    const camStatus = document.getElementById('cam-status');
+    
+    let html5QrcodeScanner;
+    let userLat = ""; let userLng = "";
+    let modeKamera = "environment"; 
+    let isScanning = false;
+
+    function getLocation() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(p => {
+          userLat = p.coords.latitude; userLng = p.coords.longitude;
+          gpsStatus.innerText = "GPS: " + userLat.toFixed(5) + ", " + userLng.toFixed(5);
+          gpsStatus.style.color = "#2ecc71";
+        }, e => { gpsStatus.innerText = "GPS: Izin Ditolak"; gpsStatus.style.color = "#ff6b6b"; }, { enableHighAccuracy: true });
+      }
+    }
+
+    function onScanSuccess(decodedText) {
+      if(isScanning) {
+        // 1. Mainkan Suara
+        beepSound.play().catch(err => console.log("Suara diblokir browser: ", err));
+
+        // 2. Hentikan Scanner & Tampilkan Layar Gelap Loading
+        html5QrcodeScanner.pause();
+        loadingOverlay.style.display = 'flex';
+        dbStatus.innerText = "Mengirim Data...";
+        
+        // 3. Kirim Data ke Google
+        const params = new URLSearchParams();
+        params.append("id", decodedText);
+        params.append("lat", userLat);
+        params.append("lng", userLng);
+
+        fetch(scriptURL, { method: "POST", body: params, mode: "no-cors" })
+        .then(() => {
+          // 4. Jika sukses, hilangkan loading, tampilkan pesan Berhasil
+          loadingOverlay.style.display = 'none';
+          successBox.style.display = 'block';
+          successBox.innerHTML = "✅ Presensi Berhasil Dicatat<br><small>" + decodedText + "</small>";
+          dbStatus.innerText = "Menunggu Scan...";
+          
+          // 5. Lanjutkan scanner setelah 2.5 detik
+          setTimeout(() => { 
+            successBox.style.display = 'none'; 
+            html5QrcodeScanner.resume(); 
+          }, 2500);
+        })
+        .catch(err => {
+          loadingOverlay.style.display = 'none';
+          errorBox.style.display = 'block';
+          errorBox.innerHTML = "Gagal Kirim: Cek Internet Anda";
+          dbStatus.innerText = "Menunggu Scan...";
+          
+          setTimeout(() => { 
+            errorBox.style.display = 'none'; 
+            html5QrcodeScanner.resume(); 
+          }, 3000);
+        });
+      }
+    }
+
+    function mulaiKamera() {
+      html5QrcodeScanner.start(
+        { facingMode: modeKamera }, 
+        { fps: 10, qrbox: 250 }, 
+        onScanSuccess
+      ).then(() => {
+        isScanning = true;
+        camStatus.innerText = "Kamera: " + (modeKamera === "environment" ? "Belakang" : "Depan");
+      }).catch(err => {
+        errorBox.style.display = 'block';
+        errorBox.innerHTML = "Error Kamera: " + err;
+      });
+    }
+
+    function gantiKamera() {
+      if (isScanning) {
+        html5QrcodeScanner.stop().then(() => {
+          isScanning = false;
+          modeKamera = (modeKamera === "environment") ? "user" : "environment";
+          mulaiKamera();
+        }).catch(err => {
+          errorBox.style.display = 'block';
+          errorBox.innerHTML = "Gagal menukar kamera: " + err;
+        });
+      }
+    }
+
+    window.onload = function() {
+      getLocation();
+      html5QrcodeScanner = new Html5Qrcode("reader");
+      mulaiKamera();
+    };
+  </script>
+</body>
+</html>
