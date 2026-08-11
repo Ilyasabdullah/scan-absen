@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Scanner Presensi</title>
+  <title>Presensi Smart (Siswa & Guru)</title>
   
   <link rel="icon" type="image/png" href="https://img.icons8.com/color/512/qr-code.png">
   <link rel="apple-touch-icon" href="https://img.icons8.com/color/512/qr-code.png">
@@ -15,11 +15,9 @@
     h1 { color: #2ecc71; margin-bottom: 5px; font-size: 24px; }
     .subtitle { color: #8b9bb4; font-size: 14px; margin-bottom: 25px; }
     
-    /* Container Kamera dibuat Relative untuk tempat Overlay */
     #reader-container { background-color: #000000; border-radius: 12px; padding: 5px; margin: 0 auto; max-width: 400px; position: relative; }
     #reader { width: 100%; border-radius: 8px; overflow: hidden; border: 2px solid #2ecc71; }
     
-    /* ANIMASI LOADING OVERLAY */
     #loading-overlay {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(0, 0, 0, 0.85); z-index: 10; border-radius: 12px;
@@ -44,13 +42,13 @@
 </head>
 <body>
   <h1>SCAN PRESENSI</h1>
-  <p class="subtitle">MODE POS</p>
+  <p class="subtitle">TERINTEGRASI GURU & SISWA</p>
   
   <div id="reader-container">
     <div id="reader"></div>
     <div id="loading-overlay">
       <div class="spinner"></div>
-      <div class="loading-text">Memproses...</div>
+      <div class="loading-text" id="loading-msg">Memproses...</div>
     </div>
   </div>
   
@@ -65,12 +63,14 @@
   </div>
 
   <script>
-    // MASUKKAN URL GOOGLE SCRIPT (/exec) ANDA DI SINI
-    const scriptURL = "https://script.google.com/macros/s/AKfycbwBAOqB_Fif8pT1pYLhy_bA_JKEFotH2BsqzYvA5MzsKweD8XetcoeoIfMPkMgL1HAcyQ/exec"; 
+    // 1. DUA ALAMAT DATABASE (GURU DAN SISWA)
+    const urlGuru = "https://script.google.com/macros/s/AKfycbwBAOqB_Fif8pT1pYLhy_bA_JKEFotH2BsqzYvA5MzsKweD8XetcoeoIfMPkMgL1HAcyQ/exec"; 
+    const urlSiswa = "https://script.google.com/macros/s/AKfycbwziHxR64ZaOmMT6K1gmnt4kwnTrXPrbKkB2QHgLLu_b3p0vYi2Cz3Ss_yq4cQYoeNFCg/exec";
 
     const beepSound = new Audio("https://cdn.pixabay.com/download/audio/2021/08/04/audio_0625c1539c.mp3");
 
     const loadingOverlay = document.getElementById('loading-overlay');
+    const loadingMsg = document.getElementById('loading-msg');
     const errorBox = document.getElementById('error-box');
     const successBox = document.getElementById('success-box');
     const dbStatus = document.getElementById('db-status');
@@ -94,43 +94,75 @@
 
     function onScanSuccess(decodedText) {
       if(isScanning) {
-        // 1. Mainkan Suara
         beepSound.play().catch(err => console.log("Suara diblokir browser: ", err));
 
-        // 2. Hentikan Scanner & Tampilkan Layar Gelap Loading
         html5QrcodeScanner.pause();
         loadingOverlay.style.display = 'flex';
+        loadingMsg.innerText = "Memproses...";
         dbStatus.innerText = "Mengirim Data...";
         
-        // 3. Kirim Data ke Google
+        // --- LOGIKA PEMBERSIHAN QR (UNTUK NISN, NIP, ID 12 DIGIT) ---
+        let cleanId = decodedText.trim();
+        let ekstrak = cleanId.match(/(?:NISN|NIP|ID)\s*[:=\-]?\s*(\d+)/i);
+        if (ekstrak && ekstrak[1]) {
+            cleanId = ekstrak[1];
+        } else {
+            // Mencari deretan angka mulai dari 9 hingga 18 digit
+            // (Mencakup NISN 10 digit, ID Guru 12 digit, dan NIP 18 digit)
+            let cariAngka = cleanId.match(/\d{9,18}/);
+            if (cariAngka) cleanId = cariAngka[0];
+        }
+        cleanId = cleanId.replace(/\s+/g, '');
+        // -----------------------------------------------------------
+
         const params = new URLSearchParams();
-        params.append("id", decodedText);
+        params.append("id", cleanId);
         params.append("lat", userLat);
         params.append("lng", userLng);
 
-        // Mengirim Data ke Google (Penutup mata "no-cors" DIHAPUS)
-        fetch(scriptURL, { method: "POST", body: params })
-        .then(response => response.text()) // Membaca teks balasan dari Google Script
-        .then(pesanDariServer => {
+        // --- LOGIKA SMART ROUTING YANG DIPERBARUI ---
+        let urlPertama = urlSiswa;
+        let urlKedua = urlGuru;
+        
+        // Aturan: 
+        // Jika 12 digit (ID Guru) atau 18 digit (NIP Guru), utamakan DB Guru.
+        // Selain itu (biasanya 10 digit NISN), utamakan DB Siswa.
+        if (cleanId.length === 12 || cleanId.length >= 18) {
+            urlPertama = urlGuru;
+            urlKedua = urlSiswa;
+        }
+
+        // Tembak ke URL Pertama
+        fetch(urlPertama, { method: "POST", body: params })
+        .then(response => response.text())
+        .then(pesanPertama => {
+            // Jika hasilnya "tidak ditemukan", tembak ke URL Kedua sebagai cadangan
+            if (pesanPertama.toLowerCase().includes("tidak ditemukan")) {
+                loadingMsg.innerText = "Mencari di DB lain...";
+                dbStatus.innerText = "Mencari rute cadangan...";
+                return fetch(urlKedua, { method: "POST", body: params })
+                       .then(res2 => res2.text());
+            }
+            // Jika berhasil/status lain, langsung kembalikan pesan pertama
+            return pesanPertama;
+        })
+        .then(pesanFinal => {
           loadingOverlay.style.display = 'none';
           dbStatus.innerText = "Menunggu Scan...";
           
-          // Cek apakah pesannya menandakan SUKSES (Berisi kata Berhasil / Hadir / Terlambat)
-          if (pesanDariServer.includes("Berhasil") || pesanDariServer.includes("Hadir") || pesanDariServer.includes("Terlambat") || pesanDariServer.includes("Tepat")) {
+          if (pesanFinal.includes("Berhasil") || pesanFinal.includes("Hadir") || pesanFinal.includes("Terlambat") || pesanFinal.includes("Tepat") || pesanFinal.includes("Pulang")) {
             successBox.style.display = 'block';
-            successBox.innerHTML = "✅ " + pesanDariServer;
+            successBox.innerHTML = "✅ " + pesanFinal;
           } else {
-            // Jika DITOLAK (Kejauhan, Dobel Scan, Jam Tutup, NIP Salah, dll)
             errorBox.style.display = 'block';
-            errorBox.innerHTML = "❌ " + pesanDariServer;
+            errorBox.innerHTML = "❌ " + pesanFinal;
           }
           
-          // Beri waktu tampil 3,5 detik agar guru sempat membaca pesannya
           setTimeout(() => { 
             successBox.style.display = 'none'; 
             errorBox.style.display = 'none';
             html5QrcodeScanner.resume(); 
-          }, 3500);
+          }, 1500); // 1.5 detik siap scan lagi
         })
         .catch(err => {
           loadingOverlay.style.display = 'none';
@@ -141,7 +173,7 @@
           setTimeout(() => { 
             errorBox.style.display = 'none'; 
             html5QrcodeScanner.resume(); 
-          }, 3000);
+          }, 1500); // 1.5 detik siap scan lagi
         });
       }
     }
@@ -181,4 +213,3 @@
   </script>
 </body>
 </html>
-
