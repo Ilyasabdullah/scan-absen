@@ -386,12 +386,18 @@
     }
 
     function mulaiKamera() {
-      // Sesuaikan ukuran kotak scan
-      const boxSize = (window.innerWidth < 400) ? 200 : 250;
-      
       html5QrcodeScanner.start(
         { facingMode: modeKamera }, 
-        { fps: 15, qrbox: { width: boxSize, height: boxSize }, aspectRatio: 1.0 }, 
+        { 
+            fps: 15, 
+            // PERBAIKAN: Membuat area scan (qrbox) dinamis mengikuti 95% ukuran bingkai hijau
+            qrbox: function(viewfinderWidth, viewfinderHeight) {
+                let minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
+                let boxSize = Math.floor(minEdgeSize * 0.95); 
+                return { width: boxSize, height: boxSize };
+            }, 
+            aspectRatio: 1.0 
+        }, 
         onScanSuccess
       ).then(() => {
         document.getElementById('cam-status').innerText = "Kamera: Aktif (" + (modeKamera === "user" ? "Depan" : "Belakang") + ")";
