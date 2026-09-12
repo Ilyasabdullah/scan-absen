@@ -261,7 +261,7 @@
           if (diffMins < 15) {
               const sisaWaktu = Math.ceil(15 - diffMins);
               const tipeScan = now.getHours() < 12 ? "Datang" : "Pulang";
-              tampilkanErrorLayarPenuh(`Anda Sudah Melakukan Scan ${tipeScan}.<br><br><span style='font-size:13px; opacity:0.8;'>Kamera menolak scan ganda.<br>Silakan tunggu ${sisaWaktu} menit lagi jika ingin scan ulang.</span>`);
+              tampilkanErrorLayarPenuh(`Anda Baru Saja Melakukan Scan.<br><br><span style='font-size:13px; opacity:0.8;'>Sistem menolak scan ganda untuk mencegah data dobel.<br>Silakan tunggu ${sisaWaktu} menit lagi jika ingin scan ulang.</span>`);
               return; 
           }
       }
