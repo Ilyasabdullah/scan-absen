@@ -77,7 +77,8 @@
     // --- KONFIGURASI DATABASE ---
     const urlGuru = "https://script.google.com/macros/s/AKfycbwBAOqB_Fif8pT1pYLhy_bA_JKEFotH2BsqzYvA5MzsKweD8XetcoeoIfMPkMgL1HAcyQ/exec"; 
     const urlSiswa = "https://script.google.com/macros/s/AKfycbwziHxR64ZaOmMT6K1gmnt4kwnTrXPrbKkB2QHgLLu_b3p0vYi2Cz3Ss_yq4cQYoeNFCg/exec";
- 
+    
+    const beepSound = new Audio("https://cdn.pixabay.com/download/audio/2021/08/04/audio_0625c1539c.mp3");  
     let html5QrcodeScanner;
     let userLat = ""; let userLng = "";
     let modeKamera = "user"; // "user" = Kamera depan (cocok untuk Kiosk), "environment" = Kamera belakang
@@ -126,29 +127,27 @@
     }
     // --- FUNGSI FEEDBACK 100% OFFLINE ---
     function playBeep() {
-        // 1. Bunyi Beep Sistem (Tanpa File Internet)
-        try {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            const ctx = new AudioContext();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.frequency.value = 800; // Frekuensi suara (semakin besar semakin nyaring)
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start();
-            gain.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + 0.1);
-            osc.stop(ctx.currentTime + 0.1);
-        } catch (e) {}
+        // 1. Bunyi Audio (Tetap bunyi offline karena sudah masuk sw.js)
+        beepSound.play().catch(e => console.log("Suara tertahan sistem HP"));
 
-        // 2. Getaran HP (200 milidetik)
+        // 2. Getaran HP (Bergetar 2 kali cepat)
         if (navigator.vibrate) {
-            navigator.vibrate(200);
+            navigator.vibrate([200, 100, 200]);
         }
 
-        // 3. Kedipan Layar Hijau
-        const originalBg = document.body.style.backgroundColor;
-        document.body.style.backgroundColor = "#2ecc71"; 
-        setTimeout(() => { document.body.style.backgroundColor = originalBg; }, 150);
+        // 3. Efek Visual Kilatan Hijau di Kotak Kamera
+        const readerEl = document.getElementById('reader');
+        if(readerEl) {
+            readerEl.style.transition = "all 0.1s ease-in-out";
+            readerEl.style.border = "12px solid #2ecc71";
+            readerEl.style.boxShadow = "0px 0px 40px rgba(46, 204, 113, 0.9)";
+            
+            // Kembalikan ke warna normal setelah setengah detik
+            setTimeout(() => { 
+                readerEl.style.border = "2px solid #2ecc71"; 
+                readerEl.style.boxShadow = "none";
+            }, 500);
+        }
     }
 
     // --- PROSES SAAT KARTU DI-SCAN ---
