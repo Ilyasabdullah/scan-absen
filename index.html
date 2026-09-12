@@ -22,55 +22,69 @@
 
   <style>
     body { background-color: #0f141e; color: #ffffff; font-family: sans-serif; margin: 0; padding: 20px; text-align: center; }
-    h1 { color: #2ecc71; margin-bottom: 5px; font-size: 24px; }
+    h1 { color: #2ecc71; margin-bottom: 5px; font-size: 24px; font-weight: bold;}
     .subtitle { color: #8b9bb4; font-size: 14px; margin-bottom: 15px; }
     
     #offline-badge { background-color: #e74c3c; color: white; padding: 8px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; display: none; margin: 0 auto 15px auto; width: fit-content; animation: pulse 2s infinite; }
-    #sync-btn { background-color: #f39c12; color: white; border: none; padding: 10px 20px; font-size: 14px; border-radius: 6px; cursor: pointer; font-weight: bold; display: none; margin: 10px auto; width: 100%; max-width: 400px;}
+    #sync-btn { background-color: #f39c12; color: white; border: none; padding: 12px 20px; font-size: 15px; border-radius: 8px; cursor: pointer; font-weight: bold; display: none; margin: 10px auto; width: 100%; max-width: 400px;}
     
     #reader-container { background-color: #000000; border-radius: 12px; padding: 5px; margin: 0 auto; max-width: 400px; position: relative; }
     #reader { width: 100%; border-radius: 8px; overflow: hidden; border: 2px solid #2ecc71; }
     
-    #loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); z-index: 10; border-radius: 12px; display: none; flex-direction: column; align-items: center; justify-content: center; }
-    .spinner { border: 5px solid #3a4556; border-top: 5px solid #2ecc71; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin-bottom: 15px; }
-    
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
-    
-    .loading-text { color: #2ecc71; font-weight: bold; font-size: 16px; }
-    #error-box { background-color: #1e2532; color: #ff6b6b; padding: 15px; border-radius: 8px; margin: 20px auto; max-width: 400px; display: none; font-size: 14px; border: 1px solid #3a4556; }
-    #success-box { background-color: #d4edda; color: #155724; padding: 15px; border-radius: 8px; margin: 20px auto; max-width: 400px; display: none; font-weight: bold; }
-    
-    .btn-kamera { background-color: #2980b9; color: white; border: none; padding: 10px 20px; font-size: 14px; border-radius: 6px; cursor: pointer; margin-top: 15px; font-weight: bold; width: 100%; max-width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: 0.2s; }
+    .btn-kamera { background-color: #2980b9; color: white; border: none; padding: 12px 20px; font-size: 15px; border-radius: 8px; cursor: pointer; margin-top: 15px; font-weight: bold; width: 100%; max-width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: 0.2s; }
     .btn-kamera:active { background-color: #1f6391; transform: translateY(2px); }
     
     .footer-status { color: #5c6b82; font-size: 12px; margin-top: 20px; line-height: 1.8; }
+
+    /* ========================================= */
+    /* ANIMASI FEEDBACK LAYAR PENUH */
+    /* ========================================= */
+    #fullscreen-alert {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        z-index: 9999; display: none; flex-direction: column; align-items: center; justify-content: center;
+        color: white; padding: 20px; box-sizing: border-box; text-align: center;
+        animation: popIn 0.2s ease-out;
+    }
+    .alert-icon { font-size: 85px; margin-bottom: 15px; }
+    .alert-title { font-size: 28px; font-weight: bold; margin: 0 0 10px 0; text-transform: uppercase; line-height:1.2;}
+    .alert-desc { font-size: 16px; opacity: 0.9; line-height: 1.5; }
+    
+    .bg-green { background-color: #27ae60; }
+    .bg-red { background-color: #c0392b; }
+    .bg-blue { background-color: #2980b9; }
+
+    .spinner { border: 6px solid rgba(255,255,255,0.3); border-top: 6px solid #ffffff; border-radius: 50%; width: 70px; height: 70px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+    
+    @keyframes popIn { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .animate-pulse-icon { animation: pulse 1s infinite; }
   </style>
 </head>
 <body>
   <h1>SCAN PRESENSI</h1>
   <p class="subtitle">TERINTEGRASI GURU & SISWA</p>
 
-  <!-- Indikator Offline & Tombol Sinkronisasi -->
   <div id="offline-badge">Koneksi Terputus - Mode Offline</div>
   <button id="sync-btn" onclick="syncData()">🔄 Sinkronisasi Data Tertunda (<span id="queue-count">0</span>)</button>
   
   <div id="reader-container">
     <div id="reader"></div>
-    <div id="loading-overlay">
-      <div class="spinner"></div>
-      <div class="loading-text" id="loading-msg">Memproses...</div>
-    </div>
   </div>
   
   <button class="btn-kamera" onclick="gantiKamera()">🔄 Ganti Kamera</button>
 
-  <div id="error-box"></div>
-  <div id="success-box"></div>
   <div class="footer-status">
     <span id="cam-status">Kamera: Menyiapkan...</span><br>
-    <span id="db-status">Menunggu Scan...</span><br>
+    <span id="db-status">Sistem Siap Digunakan.</span><br>
     <span id="gps-status">GPS: Memeriksa Lokasi...</span>
+  </div>
+
+  <!-- LAYAR PENUH UNTUK FEEDBACK SCANNER -->
+  <div id="fullscreen-alert">
+    <div class="alert-icon animate-pulse-icon" id="alert-icon">✅</div>
+    <h2 class="alert-title" id="alert-title">BERHASIL</h2>
+    <p class="alert-desc" id="alert-desc">Pesan sukses disini</p>
   </div>
 
   <script>
@@ -78,16 +92,30 @@
     const urlGuru = "https://script.google.com/macros/s/AKfycbwBAOqB_Fif8pT1pYLhy_bA_JKEFotH2BsqzYvA5MzsKweD8XetcoeoIfMPkMgL1HAcyQ/exec"; 
     const urlSiswa = "https://script.google.com/macros/s/AKfycbwziHxR64ZaOmMT6K1gmnt4kwnTrXPrbKkB2QHgLLu_b3p0vYi2Cz3Ss_yq4cQYoeNFCg/exec";
     
-    const beepSound = new Audio("https://cdn.pixabay.com/download/audio/2021/08/04/audio_0625c1539c.mp3");  
+    // --- AUDIO & CAMERA STATE ---
+    const beepSound = new Audio("https://cdn.pixabay.com/download/audio/2021/08/04/audio_0625c1539c.mp3");
     let html5QrcodeScanner;
     let userLat = ""; let userLng = "";
-    let modeKamera = "user"; // "user" = Kamera depan (cocok untuk Kiosk), "environment" = Kamera belakang
-    
-    // PERBAIKAN: Pisahkan sistem lock scan dan lock sinkronisasi agar tidak bentrok
+    let modeKamera = "user"; 
     let isScanning = false;
     let isSyncing = false; 
     
+    // Antrean Offline dan Riwayat Scan (Mencegah Double Scan)
     let scanQueue = JSON.parse(localStorage.getItem('absenQueueSmart')) || [];
+    let recentScans = JSON.parse(localStorage.getItem('recentScansKiosk')) || {};
+
+    // --- PEMBUKA KUNCI SUARA BROWSER ---
+    // Browser butuh sentuhan layar pertama kali agar mengizinkan file audio dimainkan
+    function unlockAudio() {
+        beepSound.play().then(() => { 
+            beepSound.pause(); 
+            beepSound.currentTime = 0; 
+        }).catch(() => {});
+        window.removeEventListener('touchstart', unlockAudio);
+        window.removeEventListener('click', unlockAudio);
+    }
+    window.addEventListener('touchstart', unlockAudio, { once: true });
+    window.addEventListener('click', unlockAudio, { once: true });
     
     function updateQueueUI() {
       const btn = document.getElementById('sync-btn');
@@ -98,7 +126,7 @@
       
       if (!navigator.onLine) {
         badge.style.display = 'block';
-        badge.innerText = "Tidak Ada Internet - Data Masuk Antrean HP";
+        badge.innerText = "Tidak Ada Internet - Data Masuk HP";
         btn.style.display = scanQueue.length > 0 ? 'block' : 'none';
       } else {
         badge.style.display = 'none';
@@ -106,7 +134,6 @@
       }
     }
 
-    // Auto-sync HANYA saat event 'online' terpancing (dari putus ke nyambung)
     window.addEventListener('online', () => {
         updateQueueUI();
         if (scanQueue.length > 0) syncData();
@@ -125,71 +152,66 @@
         }, { enableHighAccuracy: true });
       }
     }
-    // --- FUNGSI FEEDBACK 100% OFFLINE ---
-    function playBeep() {
-        // 1. Coba Bunyikan MP3
-        let playPromise = beepSound.play();
+
+    // ==========================================
+    // FUNGSI ANIMASI LAYAR PENUH 
+    // ==========================================
+    function tampilkanSuksesLayarPenuh(judul, pesanHTML) {
+        const alertBox = document.getElementById('fullscreen-alert');
+        alertBox.className = "bg-green";
+        alertBox.style.display = "flex";
+        document.getElementById('alert-icon').innerHTML = "✅";
+        document.getElementById('alert-icon').className = "alert-icon animate-pulse-icon";
+        document.getElementById('alert-title').innerHTML = judul;
+        document.getElementById('alert-desc').innerHTML = pesanHTML;
         
-        if (playPromise !== undefined) {
-            playPromise.catch(error => {
-                // Jika MP3 diblokir browser, gunakan suara sistem (Beep buatan)
-                try {
-                    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                    const oscillator = audioCtx.createOscillator();
-                    const gainNode = audioCtx.createGain();
-                    oscillator.frequency.value = 1000; // Nada tinggi
-                    oscillator.connect(gainNode);
-                    gainNode.connect(audioCtx.destination);
-                    oscillator.start();
-                    gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.15);
-                    oscillator.stop(audioCtx.currentTime + 0.15);
-                } catch (e) {}
-            });
-        }
-
-        // 2. Getaran HP (Bergetar cepat)
-        if (navigator.vibrate) {
-            navigator.vibrate([200, 100, 200]);
-        }
-
-        // 3. Efek Visual Kilatan Hijau di Kotak Kamera
-        const readerEl = document.getElementById('reader');
-        if(readerEl) {
-            readerEl.style.transition = "all 0.1s ease-in-out";
-            readerEl.style.border = "12px solid #2ecc71";
-            readerEl.style.boxShadow = "0px 0px 40px rgba(46, 204, 113, 0.9)";
-            
-            // Kembalikan ke warna normal setelah setengah detik
-            setTimeout(() => { 
-                readerEl.style.border = "2px solid #2ecc71"; 
-                readerEl.style.boxShadow = "none";
-            }, 500);
-        }
+        setTimeout(() => {
+            alertBox.style.display = "none";
+            isScanning = false; 
+            html5QrcodeScanner.resume();
+        }, 2500); 
     }
 
-    // --- PEMBUKA KUNCI SUARA BROWSER ---
-    // Memancing browser agar mengizinkan suara saat layar disentuh pertama kali
-    function unlockAudio() {
-        beepSound.play().then(() => { 
-            beepSound.pause(); 
-            beepSound.currentTime = 0; 
-        }).catch(() => {});
-        window.removeEventListener('touchstart', unlockAudio);
-        window.removeEventListener('click', unlockAudio);
+    function tampilkanErrorLayarPenuh(pesanHTML) {
+        const alertBox = document.getElementById('fullscreen-alert');
+        alertBox.className = "bg-red";
+        alertBox.style.display = "flex";
+        document.getElementById('alert-icon').innerHTML = "❌";
+        document.getElementById('alert-icon').className = "alert-icon";
+        document.getElementById('alert-title').innerHTML = "PERHATIAN!";
+        document.getElementById('alert-desc').innerHTML = pesanHTML;
+        
+        setTimeout(() => {
+            alertBox.style.display = "none";
+            isScanning = false;
+            html5QrcodeScanner.resume();
+        }, 3500); 
     }
-    window.addEventListener('touchstart', unlockAudio, { once: true });
-    window.addEventListener('click', unlockAudio, { once: true });
 
-    // --- PROSES SAAT KARTU DI-SCAN ---
+    function tampilkanLoadingLayarPenuh() {
+        const alertBox = document.getElementById('fullscreen-alert');
+        alertBox.className = "bg-blue";
+        alertBox.style.display = "flex";
+        document.getElementById('alert-icon').innerHTML = `<div class="spinner"></div>`;
+        document.getElementById('alert-icon').className = "";
+        document.getElementById('alert-title').innerHTML = "MEMPROSES DATA...";
+        document.getElementById('alert-desc').innerHTML = "Koneksi ke server. Jangan jauhkan kartu.";
+    }
+
+    // ==========================================
+    // PROSES SAAT KARTU DI-SCAN
+    // ==========================================
     function onScanSuccess(decodedText) {
-      // PERBAIKAN: Jika sedang memproses data atau sedang sinkronisasi, abaikan scan baru
       if(isScanning || isSyncing) return; 
-      
       isScanning = true;
-      playBeep(); // <--- INI PERUBAHANNYA
-    
+      html5QrcodeScanner.pause();
+
+      // --- BUNYIKAN BEEP JIKA ONLINE ---
+      if (navigator.onLine) {
+          beepSound.play().catch(e => console.log("Suara diblokir browser, ketuk layar satu kali."));
+      }
       
-      // Pembersihan String ID (Smart Detection)
+      // 1. Pembersihan String ID
       let cleanId = decodedText.trim();
       let ekstrak = cleanId.match(/(?:NISN|NIP|ID)\s*[:=\-]?\s*(\d+)/i);
       if (ekstrak && ekstrak[1]) cleanId = ekstrak[1];
@@ -199,8 +221,26 @@
       }
       cleanId = cleanId.replace(/\s+/g, '');
 
-      // Tangkap Waktu Aktual dari HP
+      // 2. CEK JEDA WAKTU (COOLDOWN 15 MENIT UNTUK MENCEGAH DOUBLE SCAN)
       const now = new Date();
+      if (recentScans[cleanId]) {
+          const lastScan = new Date(recentScans[cleanId]);
+          const diffMs = now.getTime() - lastScan.getTime();
+          const diffMins = diffMs / 1000 / 60;
+          
+          if (diffMins < 15) {
+              const sisaWaktu = Math.ceil(15 - diffMins);
+              const tipeScan = now.getHours() < 12 ? "Datang" : "Pulang";
+              tampilkanErrorLayarPenuh(`Anda Sudah Melakukan Scan ${tipeScan}.<br><br><span style='font-size:13px; opacity:0.8;'>Kamera menolak scan ganda.<br>Silakan tunggu ${sisaWaktu} menit lagi jika ingin scan ulang.</span>`);
+              return; 
+          }
+      }
+
+      // 3. Catat Waktu Scan ke Memori Cooldown
+      recentScans[cleanId] = now.getTime();
+      localStorage.setItem('recentScansKiosk', JSON.stringify(recentScans));
+
+      // 4. Siapkan Data
       const jamScanClient = now.getHours().toString().padStart(2, '0') + ":" + 
                             now.getMinutes().toString().padStart(2, '0') + ":" + 
                             now.getSeconds().toString().padStart(2, '0');
@@ -212,9 +252,10 @@
           waktu_scan: jamScanClient
       };
 
+      // 5. Eksekusi Online / Offline
       if (!navigator.onLine) {
          simpanKeAntrean(dataScan);
-         tampilkanPesan(document.getElementById('success-box'), "Tersimpan Offline (" + jamScanClient + ")");
+         tampilkanSuksesLayarPenuh("TERSAMPAN OFFLINE", `QR Code terbaca pukul ${jamScanClient}.<br>Data akan dikirim saat sinyal internet pulih.`);
       } else {
          kirimKeServer(dataScan);
       }
@@ -227,12 +268,7 @@
     }
 
     function kirimKeServer(dataScan) {
-      const loadingMsg = document.getElementById('loading-msg');
-      const dbStatus = document.getElementById('db-status');
-      
-      document.getElementById('loading-overlay').style.display = 'flex';
-      loadingMsg.innerText = "Memproses...";
-      dbStatus.innerText = "Mengirim Data...";
+      tampilkanLoadingLayarPenuh();
       
       const params = new URLSearchParams();
       params.append("id", dataScan.id);
@@ -252,38 +288,33 @@
       .then(res => res.text())
       .then(pesan => {
           if (pesan.toLowerCase().includes("tidak ditemukan")) {
-              loadingMsg.innerText = "Mencari di DB lain...";
+              document.getElementById('alert-desc').innerText = "Mencari di database lain...";
               return fetch(urlKedua, { method: "POST", body: params }).then(r => r.text());
           }
           return pesan;
       })
       .then(pesanFinal => {
-          document.getElementById('loading-overlay').style.display = 'none';
-          dbStatus.innerText = "Menunggu Scan...";
-          
           if (pesanFinal.includes("Berhasil") || pesanFinal.includes("Hadir") || pesanFinal.includes("Tepat") || pesanFinal.includes("Pulang") || pesanFinal.includes("Cepat") || pesanFinal.includes("Terlambat")) {
-             tampilkanPesan(document.getElementById('success-box'), "✅ " + pesanFinal);
+             tampilkanSuksesLayarPenuh("BERHASIL!", pesanFinal);
           } else {
-             tampilkanPesan(document.getElementById('error-box'), "❌ " + pesanFinal);
+             tampilkanErrorLayarPenuh(pesanFinal);
+             // Jika gagal dari server, hapus jejak cooldown agar siswa/guru bisa coba scan ulang
+             delete recentScans[dataScan.id];
+             localStorage.setItem('recentScansKiosk', JSON.stringify(recentScans));
           }
       })
       .catch(err => {
-          document.getElementById('loading-overlay').style.display = 'none';
-          dbStatus.innerText = "Koneksi Terputus.";
-          
-          // Jika fetch gagal (mungkin sinyal lemah/putus di tengah jalan)
           simpanKeAntrean(dataScan);
-          tampilkanPesan(document.getElementById('success-box'), "Koneksi gagal. Disimpan ke antrean Offline.");
+          tampilkanSuksesLayarPenuh("TERSAMPAN OFFLINE", "Internet terputus saat memproses.<br>Data berhasil diamankan di antrean HP.");
       });
     }
 
     async function syncData() {
-       // PERBAIKAN: Cegah sinkronisasi ganda yang membuat tombol macet
        if (scanQueue.length === 0 || !navigator.onLine || isSyncing) return;
        
-       isSyncing = true; // Kunci proses sync
+       isSyncing = true; 
        const btn = document.getElementById('sync-btn');
-       btn.innerText = "Menyinkronkan...";
+       btn.innerText = "Menyinkronkan... Mohon Tunggu.";
        btn.disabled = true;
 
        let sisaAntrean = [];
@@ -306,11 +337,10 @@
                    await fetch(urlDua, { method: "POST", body: params });
                }
            } catch (error) {
-               sisaAntrean.push(dataScan); // Jika gagal fetch, kembalikan ke antrean
+               sisaAntrean.push(dataScan); 
            }
        }
 
-       // Selesai sync, buka kembali kuncinya
        scanQueue = sisaAntrean;
        localStorage.setItem('absenQueueSmart', JSON.stringify(scanQueue));
        
@@ -321,20 +351,8 @@
        btn.disabled = false;
        
        if (scanQueue.length === 0) {
-           alert("SINKRONISASI SUKSES!\nSemua data offline berhasil masuk ke database.");
+           alert("SINKRONISASI SUKSES!\nSemua data offline berhasil masuk ke Spreadsheet.");
        }
-    }
-
-    // PERBAIKAN FUNGSI TAMPIL PESAN
-    function tampilkanPesan(element, msg) {
-        element.style.display = 'block';
-        element.innerHTML = msg;
-        
-        // Pesan hilang setelah 2 detik, dan kunci scanning dibuka
-        setTimeout(() => { 
-            element.style.display = 'none'; 
-            isScanning = false; // Buka kunci agar bisa scan QR berikutnya
-        }, 2000);
     }
 
     function mulaiKamera() {
@@ -345,13 +363,11 @@
       ).then(() => {
         document.getElementById('cam-status').innerText = "Kamera: Aktif (" + (modeKamera === "user" ? "Depan" : "Belakang") + ")";
       }).catch(err => {
-        document.getElementById('error-box').style.display = 'block';
-        document.getElementById('error-box').innerHTML = "Error Kamera: " + err;
+        document.getElementById('cam-status').innerText = "Gagal akses kamera: " + err;
       });
     }
 
     function gantiKamera() {
-      // Pastikan hanya bisa ganti kamera jika tidak sedang scan
       if (!isScanning) {
           html5QrcodeScanner.stop().then(() => {
             modeKamera = (modeKamera === "environment") ? "user" : "environment";
