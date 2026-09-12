@@ -127,10 +127,27 @@
     }
     // --- FUNGSI FEEDBACK 100% OFFLINE ---
     function playBeep() {
-        // 1. Bunyi Audio (Tetap bunyi offline karena sudah masuk sw.js)
-        beepSound.play().catch(e => console.log("Suara tertahan sistem HP"));
+        // 1. Coba Bunyikan MP3
+        let playPromise = beepSound.play();
+        
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                // Jika MP3 diblokir browser, gunakan suara sistem (Beep buatan)
+                try {
+                    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    const oscillator = audioCtx.createOscillator();
+                    const gainNode = audioCtx.createGain();
+                    oscillator.frequency.value = 1000; // Nada tinggi
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+                    oscillator.start();
+                    gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.15);
+                    oscillator.stop(audioCtx.currentTime + 0.15);
+                } catch (e) {}
+            });
+        }
 
-        // 2. Getaran HP (Bergetar 2 kali cepat)
+        // 2. Getaran HP (Bergetar cepat)
         if (navigator.vibrate) {
             navigator.vibrate([200, 100, 200]);
         }
@@ -149,6 +166,19 @@
             }, 500);
         }
     }
+
+    // --- PEMBUKA KUNCI SUARA BROWSER ---
+    // Memancing browser agar mengizinkan suara saat layar disentuh pertama kali
+    function unlockAudio() {
+        beepSound.play().then(() => { 
+            beepSound.pause(); 
+            beepSound.currentTime = 0; 
+        }).catch(() => {});
+        window.removeEventListener('touchstart', unlockAudio);
+        window.removeEventListener('click', unlockAudio);
+    }
+    window.addEventListener('touchstart', unlockAudio, { once: true });
+    window.addEventListener('click', unlockAudio, { once: true });
 
     // --- PROSES SAAT KARTU DI-SCAN ---
     function onScanSuccess(decodedText) {
