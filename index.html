@@ -29,7 +29,8 @@
     #sync-btn { background-color: #f39c12; color: white; border: none; padding: 12px 20px; font-size: 15px; border-radius: 8px; cursor: pointer; font-weight: bold; display: none; margin: 10px auto; width: 100%; max-width: 400px;}
     
     #reader-container { background-color: #000000; border-radius: 12px; padding: 5px; margin: 0 auto; max-width: 400px; position: relative; }
-    #reader { width: 100%; border-radius: 8px; overflow: hidden; border: 2px solid #2ecc71; }
+    #reader { width: 100%; min-height: 300px; border-radius: 8px; overflow: hidden; border: 2px solid #2ecc71; }
+    #reader video { object-fit: cover !important; }
     
     .btn-kamera { background-color: #2980b9; color: white; border: none; padding: 12px 20px; font-size: 15px; border-radius: 8px; cursor: pointer; margin-top: 15px; font-weight: bold; width: 100%; max-width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: 0.2s; }
     .btn-kamera:active { background-color: #1f6391; transform: translateY(2px); }
@@ -88,24 +89,24 @@
   </div>
 
   <script>
-    // --- KONFIGURASI DATABASE ---
+    // --- KONFIGURASI DATABASE & AUDIO ---
     const urlGuru = "https://script.google.com/macros/s/AKfycbwBAOqB_Fif8pT1pYLhy_bA_JKEFotH2BsqzYvA5MzsKweD8XetcoeoIfMPkMgL1HAcyQ/exec"; 
     const urlSiswa = "https://script.google.com/macros/s/AKfycbwziHxR64ZaOmMT6K1gmnt4kwnTrXPrbKkB2QHgLLu_b3p0vYi2Cz3Ss_yq4cQYoeNFCg/exec";
     
-    // --- AUDIO & CAMERA STATE ---
     const beepSound = new Audio("https://cdn.pixabay.com/download/audio/2021/08/04/audio_0625c1539c.mp3");
+    
     let html5QrcodeScanner;
     let userLat = ""; let userLng = "";
     let modeKamera = "user"; 
+    
     let isScanning = false;
     let isSyncing = false; 
     
-    // Antrean Offline dan Riwayat Scan (Mencegah Double Scan)
+    // --- MEMORI OFFLINE & COOLDOWN 15 MENIT ---
     let scanQueue = JSON.parse(localStorage.getItem('absenQueueSmart')) || [];
     let recentScans = JSON.parse(localStorage.getItem('recentScansKiosk')) || {};
 
     // --- PEMBUKA KUNCI SUARA BROWSER ---
-    // Browser butuh sentuhan layar pertama kali agar mengizinkan file audio dimainkan
     function unlockAudio() {
         beepSound.play().then(() => { 
             beepSound.pause(); 
@@ -168,7 +169,6 @@
         setTimeout(() => {
             alertBox.style.display = "none";
             isScanning = false; 
-            html5QrcodeScanner.resume();
         }, 2500); 
     }
 
@@ -184,7 +184,6 @@
         setTimeout(() => {
             alertBox.style.display = "none";
             isScanning = false;
-            html5QrcodeScanner.resume();
         }, 3500); 
     }
 
@@ -199,18 +198,49 @@
     }
 
     // ==========================================
+    // FUNGSI SUARA & GETARAN
+    // ==========================================
+    function playBeep() {
+        let playPromise = beepSound.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                // Suara sistem darurat jika audio internet belum ter-load
+                try {
+                    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    const osc = audioCtx.createOscillator();
+                    const gainNode = audioCtx.createGain();
+                    osc.frequency.value = 1000; 
+                    osc.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+                    osc.start();
+                    gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.15);
+                    osc.stop(audioCtx.currentTime + 0.15);
+                } catch (e) {}
+            });
+        }
+        if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+        
+        // Kilatan border hijau
+        const readerEl = document.getElementById('reader');
+        if(readerEl) {
+            readerEl.style.transition = "all 0.1s ease-in-out";
+            readerEl.style.border = "12px solid #2ecc71";
+            readerEl.style.boxShadow = "0px 0px 40px rgba(46, 204, 113, 0.9)";
+            setTimeout(() => { 
+                readerEl.style.border = "2px solid #2ecc71"; 
+                readerEl.style.boxShadow = "none";
+            }, 500);
+        }
+    }
+
+    // ==========================================
     // PROSES SAAT KARTU DI-SCAN
     // ==========================================
     function onScanSuccess(decodedText) {
       if(isScanning || isSyncing) return; 
       isScanning = true;
-      html5QrcodeScanner.pause();
+      playBeep(); // Bunyikan suara & getaran
 
-      // --- BUNYIKAN BEEP JIKA ONLINE ---
-      if (navigator.onLine) {
-          beepSound.play().catch(e => console.log("Suara diblokir browser, ketuk layar satu kali."));
-      }
-      
       // 1. Pembersihan String ID
       let cleanId = decodedText.trim();
       let ekstrak = cleanId.match(/(?:NISN|NIP|ID)\s*[:=\-]?\s*(\d+)/i);
@@ -288,7 +318,7 @@
       .then(res => res.text())
       .then(pesan => {
           if (pesan.toLowerCase().includes("tidak ditemukan")) {
-              document.getElementById('alert-desc').innerText = "Mencari di database lain...";
+              document.getElementById('alert-desc').innerText = "Mencari di database cadangan...";
               return fetch(urlKedua, { method: "POST", body: params }).then(r => r.text());
           }
           return pesan;
@@ -298,7 +328,7 @@
              tampilkanSuksesLayarPenuh("BERHASIL!", pesanFinal);
           } else {
              tampilkanErrorLayarPenuh(pesanFinal);
-             // Jika gagal dari server, hapus jejak cooldown agar siswa/guru bisa coba scan ulang
+             // Jika gagal dari server (bukan masuk offline), hapus jejak cooldown agar bisa coba lagi
              delete recentScans[dataScan.id];
              localStorage.setItem('recentScansKiosk', JSON.stringify(recentScans));
           }
@@ -356,9 +386,12 @@
     }
 
     function mulaiKamera() {
+      // Sesuaikan ukuran kotak scan
+      const boxSize = (window.innerWidth < 400) ? 200 : 250;
+      
       html5QrcodeScanner.start(
         { facingMode: modeKamera }, 
-        { fps: 15, qrbox: 250 }, 
+        { fps: 15, qrbox: { width: boxSize, height: boxSize }, aspectRatio: 1.0 }, 
         onScanSuccess
       ).then(() => {
         document.getElementById('cam-status').innerText = "Kamera: Aktif (" + (modeKamera === "user" ? "Depan" : "Belakang") + ")";
@@ -371,7 +404,8 @@
       if (!isScanning) {
           html5QrcodeScanner.stop().then(() => {
             modeKamera = (modeKamera === "environment") ? "user" : "environment";
-            mulaiKamera();
+            // Jeda 300ms mencegah bug layar hitam saat switch kamera
+            setTimeout(() => { mulaiKamera(); }, 300);
           }).catch(err => console.log(err));
       }
     }
