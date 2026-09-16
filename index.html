@@ -306,9 +306,11 @@
       params.append("lng", dataScan.lng);
       params.append("waktu_scan", dataScan.waktu_scan);
 
+      // KEMBALI KE SMART ROUTING (Mencegah Overload Server Google)
       let urlPertama = urlSiswa;
       let urlKedua = urlGuru;
       
+      // Jika digit 12 atau lebih dari 18 (NIP/NUPTK), utamakan database Guru
       if (dataScan.id.length === 12 || dataScan.id.length >= 18) {
           urlPertama = urlGuru;
           urlKedua = urlSiswa;
@@ -317,6 +319,7 @@
       fetch(urlPertama, { method: "POST", body: params })
       .then(res => res.text())
       .then(pesan => {
+          // Jika tidak ketemu di database pertama, baru melirik database kedua
           if (pesan.toLowerCase().includes("tidak ditemukan")) {
               document.getElementById('alert-desc').innerText = "Mencari di database cadangan...";
               return fetch(urlKedua, { method: "POST", body: params }).then(r => r.text());
@@ -328,7 +331,6 @@
              tampilkanSuksesLayarPenuh("BERHASIL!", pesanFinal);
           } else {
              tampilkanErrorLayarPenuh(pesanFinal);
-             // Jika gagal dari server (bukan masuk offline), hapus jejak cooldown agar bisa coba lagi
              delete recentScans[dataScan.id];
              localStorage.setItem('recentScansKiosk', JSON.stringify(recentScans));
           }
