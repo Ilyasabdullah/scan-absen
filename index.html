@@ -64,7 +64,7 @@
 </head>
 <body>
   <h1>SCAN PRESENSI</h1>
-  <p class="subtitle">TERINTEGRASI GURU & SISWA</p>
+  <p class="subtitle">MAN 2 TIDORE KEPULAUAN</p>
 
   <div id="offline-badge">Koneksi Terputus - Mode Offline</div>
   <button id="sync-btn" onclick="syncData()">🔄 Sinkronisasi Data Tertunda (<span id="queue-count">0</span>)</button>
@@ -90,8 +90,7 @@
 
   <script>
     // --- KONFIGURASI DATABASE & AUDIO ---
-    const urlGuru = "https://script.google.com/macros/s/AKfycbwBAOqB_Fif8pT1pYLhy_bA_JKEFotH2BsqzYvA5MzsKweD8XetcoeoIfMPkMgL1HAcyQ/exec"; 
-    const urlSiswa = "https://script.google.com/macros/s/AKfycbwziHxR64ZaOmMT6K1gmnt4kwnTrXPrbKkB2QHgLLu_b3p0vYi2Cz3Ss_yq4cQYoeNFCg/exec";
+    const urlServer = "https://script.google.com/macros/s/AKfycbwziHxR64ZaOmMT6K1gmnt4kwnTrXPrbKkB2QHgLLu_b3p0vYi2Cz3Ss_yq4cQYoeNFCg/exec"; 
     
     const beepSound = new Audio("https://cdn.pixabay.com/download/audio/2021/08/04/audio_0625c1539c.mp3");
     
@@ -127,7 +126,7 @@
       
       if (!navigator.onLine) {
         badge.style.display = 'block';
-        badge.innerText = "Tidak Ada Internet - Data Masuk HP";
+        badge.innerText = "Tidak Ada Internet - Tetap Scan Kartu";
         btn.style.display = scanQueue.length > 0 ? 'block' : 'none';
       } else {
         badge.style.display = 'none';
@@ -306,38 +305,21 @@
       params.append("lng", dataScan.lng);
       params.append("waktu_scan", dataScan.waktu_scan);
 
-      // KEMBALI KE SMART ROUTING (Mencegah Overload Server Google)
-      let urlPertama = urlSiswa;
-      let urlKedua = urlGuru;
-      
-      // Jika digit 12 atau lebih dari 18 (NIP/NUPTK), utamakan database Guru
-      if (dataScan.id.length === 12 || dataScan.id.length >= 18) {
-          urlPertama = urlGuru;
-          urlKedua = urlSiswa;
-      }
-
-      fetch(urlPertama, { method: "POST", body: params })
+      // LANGSUNG TEMBAK KE 1 SERVER UTAMA (Proses Jauh Lebih Cepat!)
+      fetch(urlServer, { method: "POST", body: params })
       .then(res => res.text())
-      .then(pesan => {
-          // Jika tidak ketemu di database pertama, baru melirik database kedua
-          if (pesan.toLowerCase().includes("tidak ditemukan")) {
-              document.getElementById('alert-desc').innerText = "Mencari di database cadangan...";
-              return fetch(urlKedua, { method: "POST", body: params }).then(r => r.text());
-          }
-          return pesan;
-      })
       .then(pesanFinal => {
           if (pesanFinal.includes("Berhasil") || pesanFinal.includes("Hadir") || pesanFinal.includes("Tepat") || pesanFinal.includes("Pulang") || pesanFinal.includes("Cepat") || pesanFinal.includes("Terlambat")) {
              tampilkanSuksesLayarPenuh("BERHASIL!", pesanFinal);
           } else {
              tampilkanErrorLayarPenuh(pesanFinal);
-             delete recentScans[dataScan.id];
+             delete recentScans[dataScan.id]; // Hapus cooldown jika ID salah/gagal
              localStorage.setItem('recentScansKiosk', JSON.stringify(recentScans));
           }
       })
       .catch(err => {
           simpanKeAntrean(dataScan);
-          tampilkanSuksesLayarPenuh("TERSAMPAN OFFLINE", "Internet terputus saat memproses.<br>Data berhasil diamankan di antrean HP.");
+          tampilkanSuksesLayarPenuh("TERSIMPAN OFFLINE", "Internet terputus saat memproses.<br>Data berhasil diamankan di antrean HP.");
       });
     }
 
@@ -359,15 +341,9 @@
            params.append("lng", dataScan.lng);
            params.append("waktu_scan", dataScan.waktu_scan);
 
-           let urlTarget = (dataScan.id.length === 12 || dataScan.id.length >= 18) ? urlGuru : urlSiswa;
-
            try {
-               let response = await fetch(urlTarget, { method: "POST", body: params });
-               let pesan = await response.text();
-               if (pesan.toLowerCase().includes("tidak ditemukan")) {
-                   let urlDua = (urlTarget === urlGuru) ? urlSiswa : urlGuru;
-                   await fetch(urlDua, { method: "POST", body: params });
-               }
+               // HANYA 1 TARGET URL
+               await fetch(urlServer, { method: "POST", body: params });
            } catch (error) {
                sisaAntrean.push(dataScan); 
            }
