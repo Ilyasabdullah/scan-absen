@@ -347,8 +347,9 @@
     async function syncData() {
     if (scanQueue.length === 0 || !navigator.onLine || isSyncing) return;
     
+    // 1. Kunci sistem agar menolak hasil scan QR dari kamera
     isSyncing = true; 
-    isScanning = true; // KUNCI UTAMA: Blokir deteksi scan manual
+    isScanning = true; 
     
     const btn = document.getElementById('sync-btn');
     const totalData = scanQueue.length;
@@ -356,8 +357,7 @@
     btn.disabled = true;
     btn.style.backgroundColor = "#e67e22"; // Ubah jadi oranye saat proses
 
-    // Hentikan sementara mesin kamera agar tidak bisa membaca QR sama sekali
-    try { if (html5QrcodeScanner) html5QrcodeScanner.pause(); } catch(e) {}
+    // (KODE html5QrcodeScanner.pause() DIHAPUS DARI SINI AGAR KAMERA TETAP HIDUP)
 
     let sisaAntrean = [];
 
@@ -393,15 +393,16 @@
 
     // Tahan tampilan "Sukses" selama 3.5 detik, lalu kembalikan keadaan semula
     setTimeout(() => {
+        // 2. Buka kembali kunci agar kamera bisa membaca QR
         isSyncing = false; 
-        isScanning = false; // Buka kembali kunci scan
+        isScanning = false; 
+        
         btn.disabled = false;
         btn.style.backgroundColor = "#f39c12"; // Kembalikan ke warna asli
         
         updateQueueUI(); // Render ulang tombol sesuai antrean
         
-        // Nyalakan kembali pembacaan kamera
-        try { if (html5QrcodeScanner) html5QrcodeScanner.resume(); } catch(e) {}
+        // (KODE html5QrcodeScanner.resume() DIHAPUS DARI SINI)
     }, 3500);
 }
 
