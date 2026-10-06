@@ -284,7 +284,7 @@
       // 5. Eksekusi Online / Offline
       if (!navigator.onLine) {
          simpanKeAntrean(dataScan);
-         tampilkanSuksesLayarPenuh("TERSAMPAN OFFLINE", `QR Code terbaca pukul ${jamScanClient}.<br>Data akan dikirim saat sinyal internet pulih.`);
+         tampilkanSuksesLayarPenuh("TERSIMPAN OFFLINE", `QR Code terbaca pukul ${jamScanClient}.<br>Data akan dikirim saat sinyal internet pulih.`);
       } else {
          kirimKeServer(dataScan);
       }
