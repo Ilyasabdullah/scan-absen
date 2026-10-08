@@ -26,7 +26,7 @@
     .subtitle { color: #8b9bb4; font-size: 14px; margin-bottom: 15px; }
     
     #offline-badge { background-color: #e74c3c; color: white; padding: 8px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; display: none; margin: 0 auto 15px auto; width: fit-content; animation: pulse 2s infinite; }
-    #sync-btn { background-color: #f39c12; color: white; border: none; padding: 12px 20px; font-size: 15px; border-radius: 8px; cursor: pointer; font-weight: bold; display: none; margin: 10px auto; width: 100%; max-width: 400px;}
+    #sync-btn { background-color: #f39c12; color: white; border: none; padding: 12px 20px; font-size: 15px; border-radius: 8px; cursor: pointer; font-weight: bold; display: none; margin: 10px auto; width: 100%; max-width: 400px; transition: background-color 0.3s ease;}
     
     #reader-container { background-color: #000000; border-radius: 12px; padding: 5px; margin: 0 auto; max-width: 400px; position: relative; }
     #reader { width: 100%; min-height: 300px; border-radius: 8px; overflow: hidden; border: 2px solid #2ecc71; }
@@ -118,19 +118,45 @@
     window.addEventListener('click', unlockAudio, { once: true });
     
     function updateQueueUI() {
+      // Jangan timpa UI jika sedang dalam proses sinkronisasi
+      if (isSyncing) return;
+
       const btn = document.getElementById('sync-btn');
       const badge = document.getElementById('offline-badge');
       const count = document.getElementById('queue-count');
       
-      count.innerText = scanQueue.length;
+      if (count) count.innerText = scanQueue.length;
       
       if (!navigator.onLine) {
         badge.style.display = 'block';
         badge.innerText = "Tidak Ada Internet - Tetap Scan Kartu";
-        btn.style.display = scanQueue.length > 0 ? 'block' : 'none';
+        
+        if (scanQueue.length > 0) {
+            btn.style.display = 'block';
+            btn.style.backgroundColor = "#f39c12"; // Oranye/Kuning
+            btn.innerText = `🔄 Sinkronisasi Data Tertunda (${scanQueue.length})`;
+            btn.disabled = false;
+        } else {
+            btn.style.display = 'none';
+        }
       } else {
         badge.style.display = 'none';
-        btn.style.display = scanQueue.length > 0 ? 'block' : 'none';
+        
+        if (scanQueue.length > 0) {
+            btn.style.display = 'block';
+            btn.style.backgroundColor = "#f39c12"; 
+            btn.innerText = `🔄 Sinkronisasi Data Tertunda (${scanQueue.length})`;
+            btn.disabled = false;
+        } else {
+            // Tahan tombol agar tetap tampil dengan blok hijau jika isinya "Silahkan Lakukan Scan"
+            if (btn.innerText === "Silahkan Lakukan Scan") {
+                btn.style.display = 'block';
+                btn.style.backgroundColor = "#27ae60"; // Blok Hijau
+                btn.disabled = true; // Nonaktifkan klik karena antrean kosong
+            } else {
+                btn.style.display = 'none';
+            }
+        }
       }
     }
 
@@ -203,7 +229,6 @@
         let playPromise = beepSound.play();
         if (playPromise !== undefined) {
             playPromise.catch(error => {
-                // Suara sistem darurat jika audio internet belum ter-load
                 try {
                     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                     const osc = audioCtx.createOscillator();
@@ -219,7 +244,6 @@
         }
         if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
         
-        // Kilatan border hijau
         const readerEl = document.getElementById('reader');
         if(readerEl) {
             readerEl.style.transition = "all 0.1s ease-in-out";
@@ -238,9 +262,8 @@
     function onScanSuccess(decodedText) {
       if(isScanning || isSyncing) return; 
       isScanning = true;
-      playBeep(); // Bunyikan suara & getaran
+      playBeep();
 
-      // 1. Pembersihan String ID
       let cleanId = decodedText.trim();
       let ekstrak = cleanId.match(/(?:NISN|NIP|ID)\s*[:=\-]?\s*(\d+)/i);
       if (ekstrak && ekstrak[1]) cleanId = ekstrak[1];
@@ -250,7 +273,6 @@
       }
       cleanId = cleanId.replace(/\s+/g, '');
 
-      // 2. CEK JEDA WAKTU (COOLDOWN 15 MENIT UNTUK MENCEGAH DOUBLE SCAN)
       const now = new Date();
       if (recentScans[cleanId]) {
           const lastScan = new Date(recentScans[cleanId]);
@@ -259,17 +281,14 @@
           
           if (diffMins < 15) {
               const sisaWaktu = Math.ceil(15 - diffMins);
-              const tipeScan = now.getHours() < 12 ? "Datang" : "Pulang";
               tampilkanErrorLayarPenuh(`Anda Baru Saja Melakukan Scan.<br><br><span style='font-size:13px; opacity:0.8;'>Sistem menolak scan ganda untuk mencegah data dobel.<br>Silakan tunggu ${sisaWaktu} menit lagi jika ingin scan ulang.</span>`);
               return; 
           }
       }
 
-      // 3. Catat Waktu Scan ke Memori Cooldown
       recentScans[cleanId] = now.getTime();
       localStorage.setItem('recentScansKiosk', JSON.stringify(recentScans));
 
-      // 4. Siapkan Data
       const jamScanClient = now.getHours().toString().padStart(2, '0') + ":" + 
                             now.getMinutes().toString().padStart(2, '0') + ":" + 
                             now.getSeconds().toString().padStart(2, '0');
@@ -281,7 +300,6 @@
           waktu_scan: jamScanClient
       };
 
-      // 5. Eksekusi Online / Offline
       if (!navigator.onLine) {
          simpanKeAntrean(dataScan);
          tampilkanSuksesLayarPenuh("TERSIMPAN OFFLINE", `QR Code terbaca pukul ${jamScanClient}.<br>Data akan dikirim saat sinyal internet pulih.`);
@@ -293,125 +311,135 @@
     function simpanKeAntrean(data) {
       scanQueue.push(data);
       localStorage.setItem('absenQueueSmart', JSON.stringify(scanQueue));
+      
+      // Jika baru saja men-scan saat tombol hijau "Silahkan Lakukan Scan" muncul,
+      // Kembalikan tombol ke mode sinkronisasi warna orange
+      const btn = document.getElementById('sync-btn');
+      if(btn.innerText === "Silahkan Lakukan Scan") {
+          btn.innerText = "";
+      }
+      
       updateQueueUI();
     }
 
     function kirimKeServer(dataScan) {
-    tampilkanLoadingLayarPenuh();
-    
-    const params = new URLSearchParams();
-    params.append("id", dataScan.id);
-    params.append("lat", dataScan.lat);
-    params.append("lng", dataScan.lng);
-    params.append("waktu_scan", dataScan.waktu_scan);
-
-    // Tambahkan pengaman (Failsafe Timeout 15 detik)
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-    // LANGSUNG TEMBAK KE 1 SERVER UTAMA
-    fetch(urlServer, { method: "POST", body: params, signal: controller.signal })
-    .then(res => res.text())
-    .then(pesanFinal => {
-        clearTimeout(timeoutId); // Batalkan timeout jika berhasil
-        if (pesanFinal.includes("Berhasil") || pesanFinal.includes("Hadir") || pesanFinal.includes("Tepat") || pesanFinal.includes("Pulang") || pesanFinal.includes("Cepat") || pesanFinal.includes("Terlambat")) {
-           tampilkanSuksesLayarPenuh("BERHASIL!", pesanFinal);
-        } else {
-           tampilkanErrorLayarPenuh(pesanFinal);
-           delete recentScans[dataScan.id]; // Hapus cooldown jika ID salah/gagal
-           localStorage.setItem('recentScansKiosk', JSON.stringify(recentScans));
-        }
-    })
-    .catch(err => {
-        clearTimeout(timeoutId);
-        simpanKeAntrean(dataScan);
-        // Bedakan notifikasi jika gagal karena timeout atau putus sinyal
-        if (err.name === 'AbortError') {
-            tampilkanSuksesLayarPenuh("TERSIMPAN OFFLINE", "Server terlalu lama merespon.<br>Data berhasil diamankan di antrean HP.");
-        } else {
-            tampilkanSuksesLayarPenuh("TERSIMPAN OFFLINE", "Internet terputus saat memproses.<br>Data berhasil diamankan di antrean HP.");
-        }
-    })
-    .finally(() => {
-        // [PENTING] Pastikan flag antrean dan loading selalu direset, sehingga tidak macet selamanya
-        setTimeout(() => { 
-            isScanning = false; 
-            const alertBox = document.getElementById('fullscreen-alert');
-            if(alertBox.style.display === "flex" && alertBox.className === "bg-blue") {
-                alertBox.style.display = "none";
-            }
-        }, 3000);
-    });
-}
-
-    async function syncData() {
-    if (scanQueue.length === 0 || !navigator.onLine || isSyncing) return;
-    
-    // 1. Kunci sistem agar menolak hasil scan QR dari kamera
-    isSyncing = true; 
-    isScanning = true; 
-    
-    const btn = document.getElementById('sync-btn');
-    const totalData = scanQueue.length;
-    
-    btn.disabled = true;
-    btn.style.backgroundColor = "#e67e22"; // Ubah jadi oranye saat proses
-
-    // (KODE html5QrcodeScanner.pause() DIHAPUS DARI SINI AGAR KAMERA TETAP HIDUP)
-
-    let sisaAntrean = [];
-
-    for (let i = 0; i < totalData; i++) {
-        // Teks Dinamis sesuai permintaan
-        btn.innerText = `Sedang Sinkron Data.... ${i + 1} dari ${totalData} data sudah terkirim. Harap Tunggu`;
-
-        let dataScan = scanQueue[i];
+        tampilkanLoadingLayarPenuh();
+        
         const params = new URLSearchParams();
         params.append("id", dataScan.id);
         params.append("lat", dataScan.lat);
         params.append("lng", dataScan.lng);
         params.append("waktu_scan", dataScan.waktu_scan);
 
-        try {
-            await fetch(urlServer, { method: "POST", body: params });
-        } catch (error) {
-            sisaAntrean.push(dataScan); 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+        fetch(urlServer, { method: "POST", body: params, signal: controller.signal })
+        .then(res => res.text())
+        .then(pesanFinal => {
+            clearTimeout(timeoutId); 
+            if (pesanFinal.includes("Berhasil") || pesanFinal.includes("Hadir") || pesanFinal.includes("Tepat") || pesanFinal.includes("Pulang") || pesanFinal.includes("Cepat") || pesanFinal.includes("Terlambat")) {
+               tampilkanSuksesLayarPenuh("BERHASIL!", pesanFinal);
+            } else {
+               tampilkanErrorLayarPenuh(pesanFinal);
+               delete recentScans[dataScan.id]; 
+               localStorage.setItem('recentScansKiosk', JSON.stringify(recentScans));
+            }
+        })
+        .catch(err => {
+            clearTimeout(timeoutId);
+            simpanKeAntrean(dataScan);
+            if (err.name === 'AbortError') {
+                tampilkanSuksesLayarPenuh("TERSIMPAN OFFLINE", "Server terlalu lama merespon.<br>Data berhasil diamankan di antrean HP.");
+            } else {
+                tampilkanSuksesLayarPenuh("TERSIMPAN OFFLINE", "Internet terputus saat memproses.<br>Data berhasil diamankan di antrean HP.");
+            }
+        })
+        .finally(() => {
+            setTimeout(() => { 
+                isScanning = false; 
+                const alertBox = document.getElementById('fullscreen-alert');
+                if(alertBox.style.display === "flex" && alertBox.className === "bg-blue") {
+                    alertBox.style.display = "none";
+                }
+            }, 3000);
+        });
+    }
+
+    // ==========================================
+    // FUNGSI SINKRONISASI 
+    // ==========================================
+    async function syncData() {
+        if (scanQueue.length === 0 || !navigator.onLine || isSyncing) return;
+        
+        isSyncing = true; 
+        isScanning = true; // Kunci Scanner agar tidak tembus
+        
+        const btn = document.getElementById('sync-btn');
+        const totalData = scanQueue.length;
+        
+        btn.disabled = true;
+        btn.style.display = "block";
+        btn.style.backgroundColor = "#e67e22"; // Blok Oranye saat memproses
+
+        let sisaAntrean = [];
+
+        for (let i = 0; i < totalData; i++) {
+            btn.innerText = `Sedang Sinkron Data.... ${i + 1} dari ${totalData} data sudah terkirim. Harap Tunggu`;
+
+            let dataScan = scanQueue[i];
+            const params = new URLSearchParams();
+            params.append("id", dataScan.id);
+            params.append("lat", dataScan.lat);
+            params.append("lng", dataScan.lng);
+            params.append("waktu_scan", dataScan.waktu_scan);
+
+            try {
+                await fetch(urlServer, { method: "POST", body: params });
+            } catch (error) {
+                sisaAntrean.push(dataScan); 
+            }
+        }
+
+        scanQueue = sisaAntrean;
+        localStorage.setItem('absenQueueSmart', JSON.stringify(scanQueue));
+        
+        if (scanQueue.length === 0) {
+            // BERHASIL SEMUA
+            btn.style.backgroundColor = "#27ae60"; // Blok Hijau
+            btn.innerText = `Sukses Sinkron Data.... ${totalData} dari ${totalData} data sudah terkirim.`;
+            
+            // Tunggu 4 detik, lalu ganti teks menjadi "Silahkan Lakukan Scan"
+            setTimeout(() => {
+                btn.style.backgroundColor = "#27ae60"; // Pastikan Tetap Hijau
+                btn.innerText = "Silahkan Lakukan Scan";
+                
+                isSyncing = false; 
+                isScanning = false; // Buka kunci scanner
+                
+                updateQueueUI(); // Fungsi update UI mempertahankan blok hijau
+            }, 4000);
+            
+        } else {
+            // GAGAL SEBAGIAN/SEMUA
+            btn.style.backgroundColor = "#c0392b"; // Blok Merah
+            btn.innerText = `Gagal! Sisa ${scanQueue.length} data tertunda.`;
+            
+            setTimeout(() => {
+                isSyncing = false; 
+                isScanning = false; 
+                btn.disabled = false;
+                btn.style.backgroundColor = "#f39c12"; // Kembalikan ke warna asli kuning
+                updateQueueUI(); 
+            }, 4000);
         }
     }
-
-    scanQueue = sisaAntrean;
-    localStorage.setItem('absenQueueSmart', JSON.stringify(scanQueue));
-    
-    // Teks Akhir saat selesai
-    if (scanQueue.length === 0) {
-        btn.style.backgroundColor = "#27ae60"; // Hijau sukses
-        btn.innerText = `Sukses Sinkron Data.... ${totalData} dari ${totalData} data sudah terkirim.`;
-    } else {
-        btn.style.backgroundColor = "#c0392b"; // Merah gagal
-        btn.innerText = `Gagal! Sisa ${scanQueue.length} data tertunda.`;
-    }
-
-    // Tahan tampilan "Sukses" selama 3.5 detik, lalu kembalikan keadaan semula
-    setTimeout(() => {
-        // 2. Buka kembali kunci agar kamera bisa membaca QR
-        isSyncing = false; 
-        isScanning = false; 
-        
-        btn.disabled = false;
-        btn.style.backgroundColor = "#f39c12"; // Kembalikan ke warna asli
-        
-        updateQueueUI(); // Render ulang tombol sesuai antrean
-        
-        // (KODE html5QrcodeScanner.resume() DIHAPUS DARI SINI)
-    }, 3500);
-}
 
     function mulaiKamera() {
       html5QrcodeScanner.start(
         { facingMode: modeKamera }, 
         { 
             fps: 15, 
-            // PERBAIKAN: Membuat area scan (qrbox) dinamis mengikuti 95% ukuran bingkai hijau
             qrbox: function(viewfinderWidth, viewfinderHeight) {
                 let minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
                 let boxSize = Math.floor(minEdgeSize * 0.95); 
@@ -431,7 +459,6 @@
       if (!isScanning) {
           html5QrcodeScanner.stop().then(() => {
             modeKamera = (modeKamera === "environment") ? "user" : "environment";
-            // Jeda 300ms mencegah bug layar hitam saat switch kamera
             setTimeout(() => { mulaiKamera(); }, 300);
           }).catch(err => console.log(err));
       }
