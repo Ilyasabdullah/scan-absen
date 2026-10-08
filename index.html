@@ -4,9 +4,10 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Kiosk Presensi (Siswa & Guru)</title>
+  <title>Kiosk Presensi Siswa</title>
   
-  <link rel="icon" type="image/png" href="https://img.icons8.com/color/512/qr-code.png">
+  <!-- Ikon QR Code warna Merah -->
+  <link rel="icon" type="image/png" href="https://img.icons8.com/fluency-systems-filled/512/FF3B30/qr-code.png">
   <script src="https://unpkg.com/html5-qrcode"></script>
   
   <!-- SCRIPT UNTUK MENGAKTIFKAN OFFLINE MODE (SERVICE WORKER) -->
@@ -22,18 +23,22 @@
 
   <style>
     body { background-color: #0f141e; color: #ffffff; font-family: sans-serif; margin: 0; padding: 20px; text-align: center; }
-    h1 { color: #2ecc71; margin-bottom: 5px; font-size: 24px; font-weight: bold;}
+    
+    /* UBAH WARNA JUDUL JADI MERAH */
+    h1 { color: #e74c3c; margin-bottom: 5px; font-size: 24px; font-weight: bold;}
     .subtitle { color: #8b9bb4; font-size: 14px; margin-bottom: 15px; }
     
     #offline-badge { background-color: #e74c3c; color: white; padding: 8px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; display: none; margin: 0 auto 15px auto; width: fit-content; animation: pulse 2s infinite; }
     #sync-btn { background-color: #f39c12; color: white; border: none; padding: 12px 20px; font-size: 15px; border-radius: 8px; cursor: pointer; font-weight: bold; display: none; margin: 10px auto; width: 100%; max-width: 400px; transition: background-color 0.3s ease;}
     
+    /* UBAH WARNA BINGKAI KAMERA JADI MERAH */
     #reader-container { background-color: #000000; border-radius: 12px; padding: 5px; margin: 0 auto; max-width: 400px; position: relative; }
-    #reader { width: 100%; min-height: 300px; border-radius: 8px; overflow: hidden; border: 2px solid #2ecc71; }
+    #reader { width: 100%; min-height: 300px; border-radius: 8px; overflow: hidden; border: 2px solid #e74c3c; }
     #reader video { object-fit: cover !important; }
     
-    .btn-kamera { background-color: #2980b9; color: white; border: none; padding: 12px 20px; font-size: 15px; border-radius: 8px; cursor: pointer; margin-top: 15px; font-weight: bold; width: 100%; max-width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: 0.2s; }
-    .btn-kamera:active { background-color: #1f6391; transform: translateY(2px); }
+    /* UBAH WARNA TOMBOL GANTI KAMERA JADI MERAH GELAP */
+    .btn-kamera { background-color: #c0392b; color: white; border: none; padding: 12px 20px; font-size: 15px; border-radius: 8px; cursor: pointer; margin-top: 15px; font-weight: bold; width: 100%; max-width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: 0.2s; }
+    .btn-kamera:active { background-color: #96281b; transform: translateY(2px); }
     
     .footer-status { color: #5c6b82; font-size: 12px; margin-top: 20px; line-height: 1.8; }
 
@@ -64,7 +69,7 @@
 </head>
 <body>
   <h1>SCAN PRESENSI</h1>
-  <p class="subtitle">MAN 2 TIDORE KEPULAUAN</p>
+  <p class="subtitle">SMP NEGERI 1 MABA</p>
 
   <div id="offline-badge">Koneksi Terputus - Mode Offline</div>
   <button id="sync-btn" onclick="syncData()">🔄 Sinkronisasi Data Tertunda (<span id="queue-count">0</span>)</button>
@@ -90,6 +95,7 @@
 
   <script>
     // --- KONFIGURASI DATABASE & AUDIO ---
+    // (PASTIKAN MENGGUNAKAN LINK MACROS UNTUK SCRIPT SISWA DI SINI JIKA BERBEDA)
     const urlServer = "https://script.google.com/macros/s/AKfycbwBAOqB_Fif8pT1pYLhy_bA_JKEFotH2BsqzYvA5MzsKweD8XetcoeoIfMPkMgL1HAcyQ/exec"; 
     
     const beepSound = new Audio("https://cdn.pixabay.com/download/audio/2021/08/04/audio_0625c1539c.mp3");
@@ -170,8 +176,9 @@
       if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(p => {
           userLat = p.coords.latitude; userLng = p.coords.longitude;
+          // UBAH WARNA TEKS GPS JADI MERAH SAAT BERHASIL
           document.getElementById('gps-status').innerText = "GPS: " + userLat.toFixed(5) + ", " + userLng.toFixed(5);
-          document.getElementById('gps-status').style.color = "#2ecc71";
+          document.getElementById('gps-status').style.color = "#e74c3c"; 
         }, e => { 
           document.getElementById('gps-status').innerText = "GPS: Izin Ditolak"; 
           document.getElementById('gps-status').style.color = "#ff6b6b";
@@ -244,13 +251,14 @@
         }
         if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
         
+        // KILATAN BORDER MERAH SAAT SCAN BERHASIL
         const readerEl = document.getElementById('reader');
         if(readerEl) {
             readerEl.style.transition = "all 0.1s ease-in-out";
-            readerEl.style.border = "12px solid #2ecc71";
-            readerEl.style.boxShadow = "0px 0px 40px rgba(46, 204, 113, 0.9)";
+            readerEl.style.border = "12px solid #e74c3c";
+            readerEl.style.boxShadow = "0px 0px 40px rgba(231, 76, 60, 0.9)";
             setTimeout(() => { 
-                readerEl.style.border = "2px solid #2ecc71"; 
+                readerEl.style.border = "2px solid #e74c3c"; 
                 readerEl.style.boxShadow = "none";
             }, 500);
         }
