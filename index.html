@@ -178,6 +178,9 @@
       }
     }
 
+    // ==========================================
+    // FUNGSI ANIMASI LAYAR PENUH (DIPERCEPAT)
+    // ==========================================
     function tampilkanSuksesLayarPenuh(judul, pesanHTML) {
         const alertBox = document.getElementById('fullscreen-alert');
         alertBox.className = "bg-green";
@@ -187,10 +190,11 @@
         document.getElementById('alert-title').innerHTML = judul;
         document.getElementById('alert-desc').innerHTML = pesanHTML;
         
+        // DIPERCEPAT MENJADI 1.2 DETIK SAJA
         setTimeout(() => {
             alertBox.style.display = "none";
             isScanning = false; 
-        }, 2500); 
+        }, 1200); 
     }
 
     function tampilkanErrorLayarPenuh(pesanHTML) {
@@ -202,10 +206,11 @@
         document.getElementById('alert-title').innerHTML = "PERHATIAN!";
         document.getElementById('alert-desc').innerHTML = pesanHTML;
         
+        // DIPERCEPAT MENJADI 1.5 DETIK
         setTimeout(() => {
             alertBox.style.display = "none";
             isScanning = false;
-        }, 3500); 
+        }, 1500); 
     }
 
     function tampilkanLoadingLayarPenuh(keteranganTarget) {
@@ -237,16 +242,19 @@
         }
         if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
         
+        // HAPUS ATAU BERI KOMENTAR PADA BAGIAN INI AGAR HP TIDAK NGE-LAG:
+        /*
         const readerEl = document.getElementById('reader');
         if(readerEl) {
             readerEl.style.transition = "all 0.1s ease-in-out";
-            readerEl.style.border = "12px solid #3498db";
-            readerEl.style.boxShadow = "0px 0px 40px rgba(52, 152, 219, 0.9)";
+            readerEl.style.border = "12px solid #2ecc71";
+            readerEl.style.boxShadow = "0px 0px 40px rgba(46, 204, 113, 0.9)";
             setTimeout(() => { 
-                readerEl.style.border = "2px solid #3498db"; 
+                readerEl.style.border = "2px solid #2ecc71"; 
                 readerEl.style.boxShadow = "none";
             }, 500);
         }
+        */
     }
 
     // ==========================================
