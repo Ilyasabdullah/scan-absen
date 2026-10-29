@@ -179,7 +179,7 @@
     }
 
     // ==========================================
-    // FUNGSI ANIMASI LAYAR PENUH (DIPERCEPAT)
+    // FUNGSI ANIMASI YANG DIPERCEPAT (CUMA 1 DETIK)
     // ==========================================
     function tampilkanSuksesLayarPenuh(judul, pesanHTML) {
         const alertBox = document.getElementById('fullscreen-alert');
@@ -190,11 +190,11 @@
         document.getElementById('alert-title').innerHTML = judul;
         document.getElementById('alert-desc').innerHTML = pesanHTML;
         
-        // DIPERCEPAT MENJADI 1.2 DETIK SAJA
+        // HANYA TAMPIL 1 DETIK LALU LANGSUNG BUKA KAMERA LAGI
         setTimeout(() => {
             alertBox.style.display = "none";
             isScanning = false; 
-        }, 1200); 
+        }, 1000); 
     }
 
     function tampilkanErrorLayarPenuh(pesanHTML) {
@@ -206,7 +206,7 @@
         document.getElementById('alert-title').innerHTML = "PERHATIAN!";
         document.getElementById('alert-desc').innerHTML = pesanHTML;
         
-        // DIPERCEPAT MENJADI 1.5 DETIK
+        // HANYA TAMPIL 1,5 DETIK UNTUK ERROR
         setTimeout(() => {
             alertBox.style.display = "none";
             isScanning = false;
@@ -348,48 +348,35 @@
       updateQueueUI();
     }
 
+    // ==========================================
+    // FUNGSI KIRIM SERVER YANG 100% AMAN (MENUNGGU BALASAN)
+    // ==========================================
     function kirimKeServer(dataScan) {
-        tampilkanLoadingLayarPenuh(dataScan.tipe_target);
-        
-        const params = new URLSearchParams();
-        params.append("id", dataScan.id);
-        params.append("lat", dataScan.lat);
-        params.append("lng", dataScan.lng);
-        params.append("waktu_scan", dataScan.waktu_scan);
+      tampilkanLoadingLayarPenuh(); // Wajib ada untuk menahan siswa agar tidak langsung pergi
+      
+      const params = new URLSearchParams();
+      params.append("id", dataScan.id);
+      params.append("lat", dataScan.lat);
+      params.append("lng", dataScan.lng);
+      params.append("waktu_scan", dataScan.waktu_scan);
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-        fetch(dataScan.target_url, { method: "POST", body: params, signal: controller.signal })
-        .then(res => res.text())
-        .then(pesanFinal => {
-            clearTimeout(timeoutId); 
-            if (pesanFinal.includes("Berhasil") || pesanFinal.includes("Hadir") || pesanFinal.includes("Tepat") || pesanFinal.includes("Pulang") || pesanFinal.includes("Cepat") || pesanFinal.includes("Terlambat")) {
-               tampilkanSuksesLayarPenuh(`BERHASIL (${dataScan.tipe_target})`, pesanFinal);
-            } else {
-               tampilkanErrorLayarPenuh(pesanFinal);
-               delete recentScans[dataScan.id]; 
-               localStorage.setItem('recentScansKiosk', JSON.stringify(recentScans));
-            }
-        })
-        .catch(err => {
-            clearTimeout(timeoutId);
-            simpanKeAntrean(dataScan);
-            if (err.name === 'AbortError') {
-                tampilkanSuksesLayarPenuh("TERSIMPAN OFFLINE", "Server terlalu lama merespon.<br>Data diamankan di antrean HP.");
-            } else {
-                tampilkanSuksesLayarPenuh("TERSIMPAN OFFLINE", "Internet terputus saat memproses.<br>Data diamankan di antrean HP.");
-            }
-        })
-        .finally(() => {
-            setTimeout(() => { 
-                isScanning = false; 
-                const alertBox = document.getElementById('fullscreen-alert');
-                if(alertBox.style.display === "flex" && alertBox.className === "bg-blue") {
-                    alertBox.style.display = "none";
-                }
-            }, 3000);
-        });
+      fetch(urlServer, { method: "POST", body: params })
+      .then(res => res.text())
+      .then(pesanFinal => {
+          // Hanya tampilkan hijau jika Google benar-benar menjawab SUKSES
+          if (pesanFinal.includes("Berhasil") || pesanFinal.includes("Hadir") || pesanFinal.includes("Tepat") || pesanFinal.includes("Pulang") || pesanFinal.includes("Cepat") || pesanFinal.includes("Terlambat")) {
+             tampilkanSuksesLayarPenuh("BERHASIL!", pesanFinal);
+          } else {
+             tampilkanErrorLayarPenuh(pesanFinal);
+             delete recentScans[dataScan.id]; // Hapus masa tunggu jika gagal
+             localStorage.setItem('recentScansKiosk', JSON.stringify(recentScans));
+          }
+      })
+      .catch(err => {
+          // Jika di tengah proses loading tiba-tiba sinyal putus, amankan ke antrean offline
+          simpanKeAntrean(dataScan);
+          tampilkanSuksesLayarPenuh("TERSIMPAN OFFLINE", "Internet terputus saat memproses.<br>Data berhasil diamankan di HP.");
+      });
     }
 
     // ==========================================
