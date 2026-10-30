@@ -306,11 +306,11 @@
     }
 
     // ==========================================
-    // FUNGSI KIRIM SERVER DENGAN TAMPILAN NAMA
+    // FUNGSI KIRIM SERVER (VERSI KASIR - 0 DETIK) TANPA NAMA
     // ==========================================
     function kirimKeServer(dataScan) {
-      // Tahan dulu antrean (Layar Biru Kilat) untuk nanya nama ke Google
-      tampilkanLoadingLayarPenuh(); 
+      // 1. Tampilkan Sukses Seketika (0 Detik Lag)
+      tampilkanSuksesLayarPenuh("SUKSES!", `<span style="font-size:16px; font-weight:bold; display:block; margin: 10px 0;">Data absensi diterima.</span><span style="font-size:12px; opacity:0.8;">Waktu Scan: ${dataScan.waktu_scan}</span>`);
       
       const params = new URLSearchParams();
       params.append("id", dataScan.id);
@@ -318,35 +318,21 @@
       params.append("lng", dataScan.lng);
       params.append("waktu_scan", dataScan.waktu_scan);
 
+      // 2. TEMBAK SERVER DI LATAR BELAKANG
       fetch(urlServer, { method: "POST", body: params })
       .then(res => res.text())
       .then(pesanFinal => {
-          // Jika jawaban dari Google mengandung kata "Berhasil"
-          if (pesanFinal.includes("Berhasil")) {
-             // Pecah pesan "Berhasil|Nama Siswa"
-             let splitPesan = pesanFinal.split("|");
-             let namaSiswa = splitPesan[1] || "Siswa";
-             
-             // Tampilkan layar hijau sukses dengan nama siswa huruf tebal
-             tampilkanSuksesLayarPenuh(
-                 "SUKSES", 
-                 `<span style="font-size:22px; font-weight:bold; display:block; margin: 10px 0; color:#fff; text-transform:uppercase;">${namaSiswa}</span>
-                  <span style="font-size:12px; opacity:0.8;">Waktu Scan: ${dataScan.waktu_scan}</span>`
-             );
-          } else {
+          // JIKA SERVER GOOGLE MENGALAMI ERROR ATAU MENOLAK DATA
+          if (pesanFinal.includes("Error") || (!pesanFinal.includes("Berhasil") && !pesanFinal.includes("Hadir") && !pesanFinal.includes("Tepat") && !pesanFinal.includes("Pulang") && !pesanFinal.includes("Terlambat") && !pesanFinal.includes("Cepat"))) {
+             // Ganti layar hijau tadi dengan layar error merah
              tampilkanErrorLayarPenuh(`GAGAL MENYIMPAN!<br><span style="font-size:12px;">Pesan Server: ${pesanFinal}</span>`);
              delete recentScans[dataScan.id]; 
              localStorage.setItem('recentScansKiosk', JSON.stringify(recentScans));
           }
       })
       .catch(err => {
-          // Jika saat scan internet HP tiba-tiba hilang
+          // Jika internet HP putus saat mengirim
           simpanKeAntrean(dataScan);
-          tampilkanSuksesLayarPenuh(
-              "SUKSES (OFFLINE)", 
-              `<span style="font-size:16px; font-weight:bold; display:block; margin: 10px 0;">NISN: ${dataScan.id}</span>
-               <span style="font-size:12px; opacity:0.8;">Disimpan di HP. Dikirim saat sinyal pulih.</span>`
-          );
       });
     }
 
