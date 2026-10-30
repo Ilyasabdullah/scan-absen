@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Kiosk Presensi (Guru & Siswa)</title>
+  <title>Kiosk Presensi (Satu Server)</title>
   
   <link rel="icon" type="image/png" href="https://img.icons8.com/fluency/512/qr-code.png">
   <script src="https://unpkg.com/html5-qrcode"></script>
@@ -89,10 +89,9 @@
 
   <script>
     // ============================================================
-    // 1. MASUKKAN DUA LINK GOOGLE APPS SCRIPT ANDA DI SINI
+    // 1. MASUKKAN URL GOOGLE APPS SCRIPT TUNGGAL ANDA DI SINI
     // ============================================================
-    const urlServerGuru = "https://script.google.com/macros/s/AKfycbwBAOqB_Fif8pT1pYLhy_bA_JKEFotH2BsqzYvA5MzsKweD8XetcoeoIfMPkMgL1HAcyQ/exec"; 
-    const urlServerSiswa = "https://script.google.com/macros/s/AKfycbwziHxR64ZaOmMT6K1gmnt4kwnTrXPrbKkB2QHgLLu_b3p0vYi2Cz3Ss_yq4cQYoeNFCg/exec"; 
+    const urlServer = "https://script.google.com/macros/s/AKfycbyGuFy7N8zag_jw45vISQLsXx2oyjywa_3P9dcSWkODG5tzPw3pQTVq2OSn2rgYo2qC/exec"; 
     // ============================================================
     
     const beepSound = new Audio("https://cdn.pixabay.com/download/audio/2021/08/04/audio_0625c1539c.mp3");
@@ -179,7 +178,7 @@
     }
 
     // ==========================================
-    // FUNGSI ANIMASI YANG DIPERCEPAT (1 DETIK)
+    // FUNGSI ANIMASI KILAT (1 DETIK SAJA)
     // ==========================================
     function tampilkanSuksesLayarPenuh(judul, pesanHTML) {
         const alertBox = document.getElementById('fullscreen-alert');
@@ -193,7 +192,7 @@
         setTimeout(() => {
             alertBox.style.display = "none";
             isScanning = false; 
-        }, 1000); // 1 detik
+        }, 1000); 
     }
 
     function tampilkanErrorLayarPenuh(pesanHTML) {
@@ -208,17 +207,17 @@
         setTimeout(() => {
             alertBox.style.display = "none";
             isScanning = false;
-        }, 1500); // 1.5 detik
+        }, 1500); 
     }
 
-    function tampilkanLoadingLayarPenuh(keteranganTarget) {
+    function tampilkanLoadingLayarPenuh() {
         const alertBox = document.getElementById('fullscreen-alert');
         alertBox.className = "bg-blue";
         alertBox.style.display = "flex";
         document.getElementById('alert-icon').innerHTML = `<div class="spinner"></div>`;
         document.getElementById('alert-icon').className = "";
         document.getElementById('alert-title').innerHTML = "MEMPROSES DATA...";
-        document.getElementById('alert-desc').innerHTML = `Mengirim ke Database ${keteranganTarget}.<br>Jangan jauhkan kartu.`;
+        document.getElementById('alert-desc').innerHTML = `Mengirim ke Server.<br>Jangan jauhkan kartu.`;
     }
 
     function playBeep() {
@@ -242,7 +241,7 @@
     }
 
     // ==========================================
-    // PROSES SMART ROUTING SAAT KARTU DI-SCAN
+    // PROSES SAAT KARTU DI-SCAN
     // ==========================================
     function onScanSuccess(decodedText) {
       if(isScanning || isSyncing) return; 
@@ -252,27 +251,12 @@
       let cleanId = decodedText.trim();
       let finalId = cleanId;
 
+      // Tetap bersihkan format jika ID menggunakan format campuran
       let ekstrak = cleanId.match(/(?:NISN|NIP|ID)\s*[:=\-]?\s*([a-zA-Z0-9]+)/i);
       if (ekstrak && ekstrak[1]) {
           finalId = ekstrak[1];
       } else {
           finalId = cleanId.replace(/\s+/g, '');
-      }
-
-      let targetUrl = urlServerGuru; 
-      let tipeTarget = "Guru";
-
-      if (cleanId.toUpperCase().includes("NISN")) {
-          targetUrl = urlServerSiswa;
-          tipeTarget = "Siswa";
-      } 
-      else if (finalId.length === 10 && /^\d+$/.test(finalId)) {
-          targetUrl = urlServerSiswa;
-          tipeTarget = "Siswa";
-      } 
-      else {
-          targetUrl = urlServerGuru;
-          tipeTarget = "Guru/Pegawai";
       }
 
       const now = new Date();
@@ -299,14 +283,12 @@
           id: finalId,
           lat: userLat,
           lng: userLng,
-          waktu_scan: jamScanClient,
-          target_url: targetUrl, 
-          tipe_target: tipeTarget 
+          waktu_scan: jamScanClient
       };
 
       if (!navigator.onLine) {
          simpanKeAntrean(dataScan);
-         tampilkanSuksesLayarPenuh("TERSIMPAN OFFLINE", `QR Code ${tipeTarget} terbaca.<br>Data akan dikirim ke server ${tipeTarget} saat online.`);
+         tampilkanSuksesLayarPenuh("TERSIMPAN OFFLINE", `QR Code terbaca.<br>Data akan dikirim ke server saat sinyal pulih.`);
       } else {
          kirimKeServer(dataScan);
       }
@@ -324,10 +306,10 @@
     }
 
     // ==========================================
-    // FUNGSI KIRIM SERVER (CEPAT & ANTI-MACET)
+    // FUNGSI KIRIM SERVER YANG 100% AMAN & CEPAT
     // ==========================================
     function kirimKeServer(dataScan) {
-      tampilkanLoadingLayarPenuh(dataScan.tipe_target);
+      tampilkanLoadingLayarPenuh(); 
       
       const params = new URLSearchParams();
       params.append("id", dataScan.id);
@@ -335,11 +317,12 @@
       params.append("lng", dataScan.lng);
       params.append("waktu_scan", dataScan.waktu_scan);
 
-      fetch(dataScan.target_url, { method: "POST", body: params })
+      // LANGSUNG TEMBAK 1 URL TANPA RAGU
+      fetch(urlServer, { method: "POST", body: params })
       .then(res => res.text())
       .then(pesanFinal => {
           if (pesanFinal.includes("Berhasil") || pesanFinal.includes("Hadir") || pesanFinal.includes("Tepat") || pesanFinal.includes("Pulang") || pesanFinal.includes("Cepat") || pesanFinal.includes("Terlambat")) {
-             tampilkanSuksesLayarPenuh(`BERHASIL (${dataScan.tipe_target})`, pesanFinal);
+             tampilkanSuksesLayarPenuh(`BERHASIL!`, pesanFinal);
           } else {
              tampilkanErrorLayarPenuh(pesanFinal);
              delete recentScans[dataScan.id]; 
@@ -381,7 +364,8 @@
             params.append("waktu_scan", dataScan.waktu_scan);
 
             try {
-                await fetch(dataScan.target_url, { method: "POST", body: params });
+                // KETUK 1 URL SAJA
+                await fetch(urlServer, { method: "POST", body: params });
             } catch (error) {
                 sisaAntrean.push(dataScan); 
             }
