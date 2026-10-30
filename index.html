@@ -322,8 +322,12 @@
       fetch(urlServer, { method: "POST", body: params })
       .then(res => res.text())
       .then(pesanFinal => {
-          // Jika server menolak dengan tulisan Error (misal format salah)
-          if (pesanFinal.includes("Error")) {
+          // JIKA SERVER GOOGLE MENGALAMI ERROR DI BELAKANG LAYAR
+          if (pesanFinal.includes("Error") || !pesanFinal.includes("Berhasil")) {
+             
+             // Munculkan layar error merah memberitahu masalah aslinya
+             tampilkanErrorLayarPenuh(`GAGAL MENYIMPAN!<br><span style="font-size:12px;">Pesan Server: ${pesanFinal}</span>`);
+             
              delete recentScans[dataScan.id]; 
              localStorage.setItem('recentScansKiosk', JSON.stringify(recentScans));
           }
