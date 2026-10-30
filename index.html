@@ -309,7 +309,7 @@
     // FUNGSI KIRIM SERVER (VERSI KASIR - 0 DETIK)
     // ==========================================
     function kirimKeServer(dataScan) {
-      // 1. Tampilkan Sukses Seketika Tanpa Layar Biru
+      // 1. Tampilkan Sukses Seketika (Karena Kiosk Tidak Perlu Nunggu)
       tampilkanSuksesLayarPenuh("TEREKAM!", `QR Code terbaca pukul ${dataScan.waktu_scan}.<br><span style="font-size:12px; opacity:0.8;">Data dititipkan ke antrean server...</span>`);
       
       const params = new URLSearchParams();
@@ -318,14 +318,14 @@
       params.append("lng", dataScan.lng);
       params.append("waktu_scan", dataScan.waktu_scan);
 
-      // 2. TEMBAK SERVER SEKALI TANPA NUNGGU JAWABAN PANJANG
+      // 2. TEMBAK SERVER
       fetch(urlServer, { method: "POST", body: params })
       .then(res => res.text())
       .then(pesanFinal => {
-          // JIKA SERVER GOOGLE MENGALAMI ERROR DI BELAKANG LAYAR
-          if (pesanFinal.includes("Error") || !pesanFinal.includes("Berhasil")) {
+          // JIKA SERVER GOOGLE MENGALAMI ERROR ATAU MENOLAK DATA
+          if (pesanFinal.includes("Error") || (!pesanFinal.includes("Berhasil") && !pesanFinal.includes("Hadir") && !pesanFinal.includes("Tepat") && !pesanFinal.includes("Pulang") && !pesanFinal.includes("Terlambat") && !pesanFinal.includes("Cepat"))) {
              
-             // Munculkan layar error merah memberitahu masalah aslinya
+             // Ganti layar sukses tadi dengan layar error merah
              tampilkanErrorLayarPenuh(`GAGAL MENYIMPAN!<br><span style="font-size:12px;">Pesan Server: ${pesanFinal}</span>`);
              
              delete recentScans[dataScan.id]; 
@@ -333,7 +333,7 @@
           }
       })
       .catch(err => {
-          // Jika putus internet HP
+          // Jika internet HP putus saat mengirim
           simpanKeAntrean(dataScan);
       });
     }
