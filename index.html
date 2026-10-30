@@ -306,10 +306,11 @@
     }
 
     // ==========================================
-    // FUNGSI KIRIM SERVER YANG 100% AMAN & CEPAT
+    // FUNGSI KIRIM SERVER (VERSI KASIR - 0 DETIK)
     // ==========================================
     function kirimKeServer(dataScan) {
-      tampilkanLoadingLayarPenuh(); 
+      // 1. Tampilkan Sukses Seketika Tanpa Layar Biru
+      tampilkanSuksesLayarPenuh("TEREKAM!", `QR Code terbaca pukul ${dataScan.waktu_scan}.<br><span style="font-size:12px; opacity:0.8;">Data dititipkan ke antrean server...</span>`);
       
       const params = new URLSearchParams();
       params.append("id", dataScan.id);
@@ -317,21 +318,19 @@
       params.append("lng", dataScan.lng);
       params.append("waktu_scan", dataScan.waktu_scan);
 
-      // LANGSUNG TEMBAK 1 URL TANPA RAGU
+      // 2. TEMBAK SERVER SEKALI TANPA NUNGGU JAWABAN PANJANG
       fetch(urlServer, { method: "POST", body: params })
       .then(res => res.text())
       .then(pesanFinal => {
-          if (pesanFinal.includes("Berhasil") || pesanFinal.includes("Hadir") || pesanFinal.includes("Tepat") || pesanFinal.includes("Pulang") || pesanFinal.includes("Cepat") || pesanFinal.includes("Terlambat")) {
-             tampilkanSuksesLayarPenuh(`BERHASIL!`, pesanFinal);
-          } else {
-             tampilkanErrorLayarPenuh(pesanFinal);
+          // Jika server menolak dengan tulisan Error (misal format salah)
+          if (pesanFinal.includes("Error")) {
              delete recentScans[dataScan.id]; 
              localStorage.setItem('recentScansKiosk', JSON.stringify(recentScans));
           }
       })
       .catch(err => {
+          // Jika putus internet HP
           simpanKeAntrean(dataScan);
-          tampilkanSuksesLayarPenuh("TERSIMPAN OFFLINE", "Internet terputus saat memproses.<br>Data diamankan di antrean HP.");
       });
     }
 
