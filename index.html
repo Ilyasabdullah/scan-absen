@@ -63,8 +63,8 @@
   </style>
 </head>
 <body>
-  <h1>SCAN PRESENSI</h1>
-  <p class="subtitle">SMP NEGERI 1 INDONESIA</p>
+  <h1>ABSENSI PINTAR</h1>
+  <p class="subtitle">SMP NEGERI 1 MABA</p>
 
   <div id="offline-badge">Koneksi Terputus - Mode Offline</div>
   <button id="sync-btn" onclick="syncData()">🔄 Sinkronisasi Data Tertunda (<span id="queue-count">0</span>)</button>
@@ -179,7 +179,7 @@
     }
 
     // ==========================================
-    // FUNGSI ANIMASI YANG DIPERCEPAT (CUMA 1 DETIK)
+    // FUNGSI ANIMASI YANG DIPERCEPAT (1 DETIK)
     // ==========================================
     function tampilkanSuksesLayarPenuh(judul, pesanHTML) {
         const alertBox = document.getElementById('fullscreen-alert');
@@ -190,11 +190,10 @@
         document.getElementById('alert-title').innerHTML = judul;
         document.getElementById('alert-desc').innerHTML = pesanHTML;
         
-        // HANYA TAMPIL 1 DETIK LALU LANGSUNG BUKA KAMERA LAGI
         setTimeout(() => {
             alertBox.style.display = "none";
             isScanning = false; 
-        }, 1000); 
+        }, 1000); // 1 detik
     }
 
     function tampilkanErrorLayarPenuh(pesanHTML) {
@@ -206,11 +205,10 @@
         document.getElementById('alert-title').innerHTML = "PERHATIAN!";
         document.getElementById('alert-desc').innerHTML = pesanHTML;
         
-        // HANYA TAMPIL 1,5 DETIK UNTUK ERROR
         setTimeout(() => {
             alertBox.style.display = "none";
             isScanning = false;
-        }, 1500); 
+        }, 1500); // 1.5 detik
     }
 
     function tampilkanLoadingLayarPenuh(keteranganTarget) {
@@ -241,20 +239,6 @@
             });
         }
         if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-        
-        // HAPUS ATAU BERI KOMENTAR PADA BAGIAN INI AGAR HP TIDAK NGE-LAG:
-        /*
-        const readerEl = document.getElementById('reader');
-        if(readerEl) {
-            readerEl.style.transition = "all 0.1s ease-in-out";
-            readerEl.style.border = "12px solid #2ecc71";
-            readerEl.style.boxShadow = "0px 0px 40px rgba(46, 204, 113, 0.9)";
-            setTimeout(() => { 
-                readerEl.style.border = "2px solid #2ecc71"; 
-                readerEl.style.boxShadow = "none";
-            }, 500);
-        }
-        */
     }
 
     // ==========================================
@@ -268,37 +252,28 @@
       let cleanId = decodedText.trim();
       let finalId = cleanId;
 
-      // Filter awalan text jika kartu memiliki format NIP:123... atau NISN:123...
       let ekstrak = cleanId.match(/(?:NISN|NIP|ID)\s*[:=\-]?\s*([a-zA-Z0-9]+)/i);
       if (ekstrak && ekstrak[1]) {
           finalId = ekstrak[1];
       } else {
-          // Bersihkan jika ada spasi tersembunyi
           finalId = cleanId.replace(/\s+/g, '');
       }
 
-      // -------------------------------------------------------------
-      // LOGIKA PENENTUAN SERVER BERDASARKAN PANJANG KARAKTER/FORMAT
-      // -------------------------------------------------------------
       let targetUrl = urlServerGuru; 
       let tipeTarget = "Guru";
 
-      // Syarat 1: Jika di dalam QR Code secara tertulis ada kata "NISN"
       if (cleanId.toUpperCase().includes("NISN")) {
           targetUrl = urlServerSiswa;
           tipeTarget = "Siswa";
       } 
-      // Syarat 2: Jika ID persis 10 karakter dan semuanya adalah Angka -> Pasti NISN Siswa
       else if (finalId.length === 10 && /^\d+$/.test(finalId)) {
           targetUrl = urlServerSiswa;
           tipeTarget = "Siswa";
       } 
-      // Syarat 3: Jika 18 Karakter (NIP) atau panjangnya unik (Non-ASN) -> Masuk Guru
       else {
           targetUrl = urlServerGuru;
           tipeTarget = "Guru/Pegawai";
       }
-      // -------------------------------------------------------------
 
       const now = new Date();
       if (recentScans[finalId]) {
@@ -349,10 +324,10 @@
     }
 
     // ==========================================
-    // FUNGSI KIRIM SERVER YANG 100% AMAN (MENUNGGU BALASAN)
+    // FUNGSI KIRIM SERVER (CEPAT & ANTI-MACET)
     // ==========================================
     function kirimKeServer(dataScan) {
-      tampilkanLoadingLayarPenuh(); // Wajib ada untuk menahan siswa agar tidak langsung pergi
+      tampilkanLoadingLayarPenuh(dataScan.tipe_target);
       
       const params = new URLSearchParams();
       params.append("id", dataScan.id);
@@ -360,27 +335,25 @@
       params.append("lng", dataScan.lng);
       params.append("waktu_scan", dataScan.waktu_scan);
 
-      fetch(urlServer, { method: "POST", body: params })
+      fetch(dataScan.target_url, { method: "POST", body: params })
       .then(res => res.text())
       .then(pesanFinal => {
-          // Hanya tampilkan hijau jika Google benar-benar menjawab SUKSES
           if (pesanFinal.includes("Berhasil") || pesanFinal.includes("Hadir") || pesanFinal.includes("Tepat") || pesanFinal.includes("Pulang") || pesanFinal.includes("Cepat") || pesanFinal.includes("Terlambat")) {
-             tampilkanSuksesLayarPenuh("BERHASIL!", pesanFinal);
+             tampilkanSuksesLayarPenuh(`BERHASIL (${dataScan.tipe_target})`, pesanFinal);
           } else {
              tampilkanErrorLayarPenuh(pesanFinal);
-             delete recentScans[dataScan.id]; // Hapus masa tunggu jika gagal
+             delete recentScans[dataScan.id]; 
              localStorage.setItem('recentScansKiosk', JSON.stringify(recentScans));
           }
       })
       .catch(err => {
-          // Jika di tengah proses loading tiba-tiba sinyal putus, amankan ke antrean offline
           simpanKeAntrean(dataScan);
-          tampilkanSuksesLayarPenuh("TERSIMPAN OFFLINE", "Internet terputus saat memproses.<br>Data berhasil diamankan di HP.");
+          tampilkanSuksesLayarPenuh("TERSIMPAN OFFLINE", "Internet terputus saat memproses.<br>Data diamankan di antrean HP.");
       });
     }
 
     // ==========================================
-    // FUNGSI SINKRONISASI 
+    // FUNGSI SINKRONISASI OFFLINE
     // ==========================================
     async function syncData() {
         if (scanQueue.length === 0 || !navigator.onLine || isSyncing) return;
@@ -408,7 +381,6 @@
             params.append("waktu_scan", dataScan.waktu_scan);
 
             try {
-                // Menembak sesuai target_url yang disimpan saat QR dibaca offline
                 await fetch(dataScan.target_url, { method: "POST", body: params });
             } catch (error) {
                 sisaAntrean.push(dataScan); 
@@ -425,10 +397,8 @@
             setTimeout(() => {
                 btn.style.backgroundColor = "#27ae60"; 
                 btn.innerText = "Silahkan Lakukan Scan";
-                
                 isSyncing = false; 
                 isScanning = false; 
-                
                 updateQueueUI(); 
             }, 4000);
             
