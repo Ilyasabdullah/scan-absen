@@ -4,7 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>PRESENSI SISWA</title>
+  <title>SMART PRESENSI TERPADU</title>
   
   <link rel="icon" type="image/png" href="https://img.icons8.com/fluency/512/qr-code.png">
   <script src="https://unpkg.com/html5-qrcode"></script>
@@ -63,8 +63,8 @@
   </style>
 </head>
 <body>
-  <h1>ABSENSI SISWA</h1>
-  <p class="subtitle">SMP NEGERI 1 MABA</p>
+  <h1>PRESENSI TERPADU</h1>
+  <p class="subtitle">Siswa & Guru - SMP NEGERI 1 MABA</p>
 
   <div id="offline-badge">Koneksi Terputus - Mode Offline</div>
   <button id="sync-btn" onclick="syncData()">🔄 Sinkronisasi Data Tertunda (<span id="queue-count">0</span>)</button>
@@ -77,7 +77,7 @@
 
   <div class="footer-status">
     <span id="cam-status">Kamera: Menyiapkan...</span><br>
-    <span id="db-status">Sistem Siap Digunakan.</span><br>
+    <span id="db-status">Sistem Siap Memindai NISN/NIP.</span><br>
     <span id="gps-status">GPS: Memeriksa Lokasi...</span>
   </div>
 
@@ -89,16 +89,18 @@
 
   <script>
     // ============================================================
-    // 1. MASUKKAN URL GOOGLE APPS SCRIPT TUNGGAL ANDA DI SINI
+    // 1. MASUKKAN DUA URL GOOGLE APPS SCRIPT ANDA DI SINI
     // ============================================================
-    const urlServer = "https://script.google.com/macros/s/AKfycbwBAOqB_Fif8pT1pYLhy_bA_JKEFotH2BsqzYvA5MzsKweD8XetcoeoIfMPkMgL1HAcyQ/exec"; 
+    // GANTI TULISAN DI DALAM TANDA KUTIP DENGAN URL WEB APP MASING-MASING
+    const urlServerSiswa = "https://script.google.com/macros/s/AKfycbwziHxR64ZaOmMT6K1gmnt4kwnTrXPrbKkB2QHgLLu_b3p0vYi2Cz3Ss_yq4cQYoeNFCg/exec"; 
+    const urlServerGuru = "https://script.google.com/macros/s/AKfycbwBAOqB_Fif8pT1pYLhy_bA_JKEFotH2BsqzYvA5MzsKweD8XetcoeoIfMPkMgL1HAcyQ/exec";
     // ============================================================
     
     const beepSound = new Audio("https://cdn.pixabay.com/download/audio/2021/08/04/audio_0625c1539c.mp3");
     
     let html5QrcodeScanner;
     let userLat = ""; let userLng = "";
-    let modeKamera = "user"; 
+    let modeKamera = "environment"; // Default kamera belakang
     
     let isScanning = false;
     let isSyncing = false; 
@@ -177,9 +179,6 @@
       }
     }
 
-    // ==========================================
-    // FUNGSI ANIMASI KILAT (1 DETIK SAJA)
-    // ==========================================
     function tampilkanSuksesLayarPenuh(judul, pesanHTML) {
         const alertBox = document.getElementById('fullscreen-alert');
         alertBox.className = "bg-green";
@@ -216,8 +215,8 @@
         alertBox.style.display = "flex";
         document.getElementById('alert-icon').innerHTML = `<div class="spinner"></div>`;
         document.getElementById('alert-icon').className = "";
-        document.getElementById('alert-title').innerHTML = "MEMPROSES DATA...";
-        document.getElementById('alert-desc').innerHTML = `Mengirim ke Server.<br>Jangan jauhkan kartu.`;
+        document.getElementById('alert-title').innerHTML = "MEMPROSES...";
+        document.getElementById('alert-desc').innerHTML = `Memeriksa Database.<br>Jangan jauhkan kartu.`;
     }
 
     function playBeep() {
@@ -241,24 +240,19 @@
     }
 
     // ==========================================
-    // PROSES SAAT KARTU DI-SCAN
+    // PROSES SAAT KARTU DI-SCAN (SMART ROUTING)
     // ==========================================
     function onScanSuccess(decodedText) {
       if(isScanning || isSyncing) return; 
       isScanning = true;
       playBeep();
 
+      // Bersihkan dan ambil angkanya saja
       let cleanId = decodedText.trim();
-      let finalId = cleanId;
+      let ekstrak = cleanId.match(/\d+/g);
+      let finalId = ekstrak ? ekstrak.join('') : cleanId.replace(/\s+/g, '');
 
-      // Tetap bersihkan format jika ID menggunakan format campuran
-      let ekstrak = cleanId.match(/(?:NISN|NIP|ID)\s*[:=\-]?\s*([a-zA-Z0-9]+)/i);
-      if (ekstrak && ekstrak[1]) {
-          finalId = ekstrak[1];
-      } else {
-          finalId = cleanId.replace(/\s+/g, '');
-      }
-
+      // 1. CEK SCAN GANDA (DOUBLE SCAN)
       const now = new Date();
       if (recentScans[finalId]) {
           const lastScan = new Date(recentScans[finalId]);
@@ -267,9 +261,24 @@
           
           if (diffMins < 15) {
               const sisaWaktu = Math.ceil(15 - diffMins);
-              tampilkanErrorLayarPenuh(`Anda Baru Saja Melakukan Scan.<br><br><span style='font-size:13px; opacity:0.8;'>Sistem menolak scan ganda untuk mencegah data dobel.<br>Silakan tunggu ${sisaWaktu} menit lagi.</span>`);
+              tampilkanErrorLayarPenuh(`Scan Ganda Ditolak.<br><span style='font-size:13px; opacity:0.8;'>Tunggu ${sisaWaktu} menit lagi.</span>`);
               return; 
           }
+      }
+
+      // 2. DETEKSI OTOMATIS: SISWA ATAU GURU BERDASARKAN JUMLAH DIGIT
+      let urlTujuan = "";
+      let labelTipe = "";
+
+      // LOGIKA BARU SESUAI PERMINTAAN ANDA:
+      if (finalId.length === 10) { 
+          // Jika jumlah digit TEPAT 10, maka dipastikan SISWA
+          urlTujuan = urlServerSiswa;
+          labelTipe = "SISWA";
+      } else { 
+          // Jika jumlah digit BUKAN 10 (bisa 18 NIP, atau format khusus lainnya), maka dipastikan GURU/PEGAWAI
+          urlTujuan = urlServerGuru;
+          labelTipe = "GURU";
       }
 
       recentScans[finalId] = now.getTime();
@@ -283,12 +292,14 @@
           id: finalId,
           lat: userLat,
           lng: userLng,
-          waktu_scan: jamScanClient
+          waktu_scan: jamScanClient,
+          tipe: labelTipe,
+          url: urlTujuan // Simpan URL tujuannya agar aman saat offline
       };
 
       if (!navigator.onLine) {
          simpanKeAntrean(dataScan);
-         tampilkanSuksesLayarPenuh("TERSIMPAN OFFLINE", `QR Code terbaca.<br>Data akan dikirim ke server saat sinyal pulih.`);
+         tampilkanSuksesLayarPenuh(`TERSIPAN OFFLINE`, `Tipe: ${labelTipe}<br>Data akan dikirim saat sinyal pulih.`);
       } else {
          kirimKeServer(dataScan);
       }
@@ -306,10 +317,9 @@
     }
 
     // ==========================================
-    // FUNGSI KIRIM SERVER DENGAN TAMPILAN NAMA GURU
+    // FUNGSI KIRIM SERVER 
     // ==========================================
     function kirimKeServer(dataScan) {
-      // Tampilkan layar biru loading saat mengirim ke Google
       tampilkanLoadingLayarPenuh(); 
       
       const params = new URLSearchParams();
@@ -318,20 +328,18 @@
       params.append("lng", dataScan.lng);
       params.append("waktu_scan", dataScan.waktu_scan);
 
-      fetch(urlServer, { method: "POST", body: params })
+      // Gunakan URL yang sudah ditentukan dari deteksi digit
+      fetch(dataScan.url, { method: "POST", body: params })
       .then(res => res.text())
       .then(pesanFinal => {
-          // Jika jawaban dari Google Apps Script mengandung kata "Berhasil"
           if (pesanFinal.includes("Berhasil")) {
              
-             // Pecah pesan "Berhasil|Nama Guru" berdasarkan simbol garis tegak (|)
              let splitPesan = pesanFinal.split("|");
-             let namaGuru = splitPesan[1] || "GURU"; // Jika nama kosong, default tulisan GURU
+             let namaPemilik = splitPesan[1] || dataScan.tipe; 
              
-             // Tampilkan layar hijau sukses dengan NAMA GURU HURUF TEBAL
              tampilkanSuksesLayarPenuh(
-                 "SUKSES", 
-                 `<span style="font-size:22px; font-weight:bold; display:block; margin: 10px 0; color:#fff; text-transform:uppercase;">${namaGuru}</span>
+                 `SUKSES (${dataScan.tipe})`, 
+                 `<span style="font-size:22px; font-weight:bold; display:block; margin: 10px 0; color:#fff; text-transform:uppercase;">${namaPemilik}</span>
                   <span style="font-size:12px; opacity:0.8;">Waktu Scan: ${dataScan.waktu_scan}</span>`
              );
              
@@ -342,18 +350,17 @@
           }
       })
       .catch(err => {
-          // Jika saat scan internet HP tiba-tiba hilang (Mode Offline)
           simpanKeAntrean(dataScan);
           tampilkanSuksesLayarPenuh(
               "SUKSES (OFFLINE)", 
-              `<span style="font-size:16px; font-weight:bold; display:block; margin: 10px 0;">NIP/ID: ${dataScan.id}</span>
+              `<span style="font-size:16px; font-weight:bold; display:block; margin: 10px 0;">ID ${dataScan.tipe}: ${dataScan.id}</span>
                <span style="font-size:12px; opacity:0.8;">Disimpan di HP. Dikirim saat sinyal pulih.</span>`
           );
       });
     }
 
     // ==========================================
-    // FUNGSI SINKRONISASI OFFLINE
+    // FUNGSI SINKRONISASI OFFLINE SMART ROUTING
     // ==========================================
     async function syncData() {
         if (scanQueue.length === 0 || !navigator.onLine || isSyncing) return;
@@ -381,8 +388,8 @@
             params.append("waktu_scan", dataScan.waktu_scan);
 
             try {
-                // KETUK 1 URL SAJA
-                await fetch(urlServer, { method: "POST", body: params });
+                // Fetch ke URL yang tersimpan pada objek data masing-masing
+                await fetch(dataScan.url, { method: "POST", body: params });
             } catch (error) {
                 sisaAntrean.push(dataScan); 
             }
