@@ -78,7 +78,7 @@
 </head>
 <body>
   <h1>PRESENSI TERPADU</h1>
-  <p class="subtitle">SMP NEGERI 1 MABA</p>
+  <p class="subtitle">Siswa & Guru - SMP NEGERI 1 MABA</p>
 
   <div id="offline-badge">Koneksi Terputus - Mode Offline</div>
   <button id="sync-btn" onclick="syncData()">🔄 Sinkronisasi Data Tertunda (<span id="queue-count">0</span>)</button>
@@ -111,7 +111,6 @@
     // ============================================================
     // 1. MASUKKAN DUA URL GOOGLE APPS SCRIPT ANDA DI SINI
     // ============================================================
-    // GANTI TULISAN DI DALAM TANDA KUTIP DENGAN URL WEB APP MASING-MASING
     const urlServerSiswa = "https://script.google.com/macros/s/AKfycbwziHxR64ZaOmMT6K1gmnt4kwnTrXPrbKkB2QHgLLu_b3p0vYi2Cz3Ss_yq4cQYoeNFCg/exec"; 
     const urlServerGuru = "https://script.google.com/macros/s/AKfycbwBAOqB_Fif8pT1pYLhy_bA_JKEFotH2BsqzYvA5MzsKweD8XetcoeoIfMPkMgL1HAcyQ/exec";
     // ============================================================
@@ -119,7 +118,8 @@
     const beepSound = new Audio("https://cdn.pixabay.com/download/audio/2021/08/04/audio_0625c1539c.mp3");
     
     let html5QrcodeScanner;
-    let userLat = ""; let userLng = "";
+    let userLat = ""; 
+    let userLng = "";
     let modeKamera = "environment"; // Default kamera belakang
     
     let isScanning = false;
@@ -279,7 +279,7 @@
         document.getElementById('alert-icon').innerHTML = `<div class="spinner"></div>`;
         document.getElementById('alert-icon').className = "";
         document.getElementById('alert-title').innerHTML = "MEMPROSES DATA...";
-        document.getElementById('alert-desc').innerHTML = `Mengirim ke Database.<br>Jangan jauhkan kartu.`;
+        document.getElementById('alert-desc').innerHTML = `Mengirim ke Server.<br>Jangan jauhkan kartu.`;
     }
 
     function playBeep() {
