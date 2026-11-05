@@ -4,11 +4,12 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>PRESENSI GURU</title>
+  <title>SMART PRESENSI TERPADU</title>
   
   <link rel="icon" type="image/png" href="https://img.icons8.com/fluency/512/qr-code.png">
   <script src="https://unpkg.com/html5-qrcode"></script>
   
+  <!-- SCRIPT UNTUK MENGAKTIFKAN OFFLINE MODE (SERVICE WORKER) -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -50,6 +51,9 @@
     
     .footer-status { color: #5c6b82; font-size: 12px; margin-top: 20px; line-height: 1.8; }
 
+    /* ========================================= */
+    /* ANIMASI FEEDBACK LAYAR PENUH */
+    /* ========================================= */
     #fullscreen-alert {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         z-index: 9999; display: none; flex-direction: column; align-items: center; justify-content: center;
@@ -73,7 +77,7 @@
   </style>
 </head>
 <body>
-  <h1>ABSENSI GURU</h1>
+  <h1>PRESENSI TERPADU</h1>
   <p class="subtitle">SMP NEGERI 1 MABA</p>
 
   <div id="offline-badge">Koneksi Terputus - Mode Offline</div>
@@ -93,7 +97,7 @@
 
   <div class="footer-status">
     <span id="cam-status">Kamera: Menunggu Izin Lokasi...</span><br>
-    <span id="db-status">Sistem Siap Digunakan.</span><br>
+    <span id="db-status">Sistem Siap Memindai NISN/NIP.</span><br>
     <span id="gps-status" style="color:#f1c40f; font-weight:bold;">GPS: Sedang mencari satelit...</span>
   </div>
 
@@ -105,17 +109,18 @@
 
   <script>
     // ============================================================
-    // 1. MASUKKAN URL GOOGLE APPS SCRIPT (GURU) ANDA DI SINI
+    // 1. MASUKKAN DUA URL GOOGLE APPS SCRIPT ANDA DI SINI
     // ============================================================
-    // Ganti tulisan di bawah ini dengan URL Web App milik Guru
-    const urlServer = "https://script.google.com/macros/s/AKfycbwBAOqB_Fif8pT1pYLhy_bA_JKEFotH2BsqzYvA5MzsKweD8XetcoeoIfMPkMgL1HAcyQ/exec"; 
+    // GANTI TULISAN DI DALAM TANDA KUTIP DENGAN URL WEB APP MASING-MASING
+    const urlServerSiswa = "https://script.google.com/macros/s/AKfycbwziHxR64ZaOmMT6K1gmnt4kwnTrXPrbKkB2QHgLLu_b3p0vYi2Cz3Ss_yq4cQYoeNFCg/exec"; 
+    const urlServerGuru = "https://script.google.com/macros/s/AKfycbwBAOqB_Fif8pT1pYLhy_bA_JKEFotH2BsqzYvA5MzsKweD8XetcoeoIfMPkMgL1HAcyQ/exec";
     // ============================================================
     
     const beepSound = new Audio("https://cdn.pixabay.com/download/audio/2021/08/04/audio_0625c1539c.mp3");
     
     let html5QrcodeScanner;
     let userLat = ""; let userLng = "";
-    let modeKamera = "user"; 
+    let modeKamera = "environment"; // Default kamera belakang
     
     let isScanning = false;
     let isSyncing = false; 
@@ -137,32 +142,49 @@
     
     function updateQueueUI() {
       if (isSyncing) return;
+
       const btn = document.getElementById('sync-btn');
       const badge = document.getElementById('offline-badge');
       const count = document.getElementById('queue-count');
+      
       if (count) count.innerText = scanQueue.length;
       
       if (!navigator.onLine) {
         badge.style.display = 'block';
         badge.innerText = "Tidak Ada Internet - Tetap Scan Kartu";
+        
         if (scanQueue.length > 0) {
-            btn.style.display = 'block'; btn.style.backgroundColor = "#f39c12"; 
-            btn.innerText = `🔄 Sinkronisasi Data Tertunda (${scanQueue.length})`; btn.disabled = false;
-        } else { btn.style.display = 'none'; }
+            btn.style.display = 'block';
+            btn.style.backgroundColor = "#f39c12"; 
+            btn.innerText = `🔄 Sinkronisasi Data Tertunda (${scanQueue.length})`;
+            btn.disabled = false;
+        } else {
+            btn.style.display = 'none';
+        }
       } else {
         badge.style.display = 'none';
+        
         if (scanQueue.length > 0) {
-            btn.style.display = 'block'; btn.style.backgroundColor = "#f39c12"; 
-            btn.innerText = `🔄 Sinkronisasi Data Tertunda (${scanQueue.length})`; btn.disabled = false;
+            btn.style.display = 'block';
+            btn.style.backgroundColor = "#f39c12"; 
+            btn.innerText = `🔄 Sinkronisasi Data Tertunda (${scanQueue.length})`;
+            btn.disabled = false;
         } else {
             if (btn.innerText === "Silahkan Lakukan Scan") {
-                btn.style.display = 'block'; btn.style.backgroundColor = "#27ae60"; btn.disabled = true; 
-            } else { btn.style.display = 'none'; }
+                btn.style.display = 'block';
+                btn.style.backgroundColor = "#27ae60"; 
+                btn.disabled = true; 
+            } else {
+                btn.style.display = 'none';
+            }
         }
       }
     }
 
-    window.addEventListener('online', () => { updateQueueUI(); if (scanQueue.length > 0) syncData(); });
+    window.addEventListener('online', () => {
+        updateQueueUI();
+        if (scanQueue.length > 0) syncData();
+    });
     window.addEventListener('offline', updateQueueUI);
 
     // ==========================================
@@ -170,21 +192,27 @@
     // ==========================================
     function getLocation() {
       if (navigator.geolocation) {
+        // Gunakan watchPosition agar GPS terus memperbarui diri
         navigator.geolocation.watchPosition(
+          // KETIKA GPS BERHASIL MENGUNCI LOKASI
           function(p) {
             userLat = p.coords.latitude; 
             userLng = p.coords.longitude;
             
+            // Hapus layar overlay peringatan
             document.getElementById('gps-overlay').style.display = 'none';
             document.getElementById('btn-ganti-kamera').disabled = false;
             
+            // Ubah teks status di bawah
             document.getElementById('gps-status').innerText = "GPS: " + userLat.toFixed(5) + ", " + userLng.toFixed(5);
-            document.getElementById('gps-status').style.color = "#2ecc71"; 
+            document.getElementById('gps-status').style.color = "#2ecc71"; // Warna hijau sukses
             
+            // Nyalakan kamera HANYA jika kamera belum pernah dinyalakan
             if (!isKameraAktif) {
                 mulaiKamera();
             }
           }, 
+          // KETIKA GPS ERROR / DITOLAK
           function(e) { 
             const gpsTitle = document.getElementById('gps-overlay-title');
             const gpsDesc = document.getElementById('gps-overlay-desc');
@@ -200,9 +228,10 @@
                 gpsStatus.innerText = "GPS: Gagal mencari satelit"; 
             }
             
-            gpsStatus.style.color = "#e74c3c"; 
+            gpsStatus.style.color = "#e74c3c"; // Warna merah
             document.getElementById('gps-overlay').style.display = 'flex';
           }, 
+          // PENGATURAN GPS
           { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
       } else {
@@ -215,25 +244,42 @@
 
     function tampilkanSuksesLayarPenuh(judul, pesanHTML) {
         const alertBox = document.getElementById('fullscreen-alert');
-        alertBox.className = "bg-green"; alertBox.style.display = "flex";
-        document.getElementById('alert-icon').innerHTML = "✅"; document.getElementById('alert-icon').className = "alert-icon animate-pulse-icon";
-        document.getElementById('alert-title').innerHTML = judul; document.getElementById('alert-desc').innerHTML = pesanHTML;
-        setTimeout(() => { alertBox.style.display = "none"; isScanning = false; }, 1000); 
+        alertBox.className = "bg-green";
+        alertBox.style.display = "flex";
+        document.getElementById('alert-icon').innerHTML = "✅";
+        document.getElementById('alert-icon').className = "alert-icon animate-pulse-icon";
+        document.getElementById('alert-title').innerHTML = judul;
+        document.getElementById('alert-desc').innerHTML = pesanHTML;
+        
+        setTimeout(() => {
+            alertBox.style.display = "none";
+            isScanning = false; 
+        }, 1000); 
     }
 
     function tampilkanErrorLayarPenuh(pesanHTML) {
         const alertBox = document.getElementById('fullscreen-alert');
-        alertBox.className = "bg-red"; alertBox.style.display = "flex";
-        document.getElementById('alert-icon').innerHTML = "❌"; document.getElementById('alert-icon').className = "alert-icon";
-        document.getElementById('alert-title').innerHTML = "PERHATIAN!"; document.getElementById('alert-desc').innerHTML = pesanHTML;
-        setTimeout(() => { alertBox.style.display = "none"; isScanning = false; }, 1500); 
+        alertBox.className = "bg-red";
+        alertBox.style.display = "flex";
+        document.getElementById('alert-icon').innerHTML = "❌";
+        document.getElementById('alert-icon').className = "alert-icon";
+        document.getElementById('alert-title').innerHTML = "PERHATIAN!";
+        document.getElementById('alert-desc').innerHTML = pesanHTML;
+        
+        setTimeout(() => {
+            alertBox.style.display = "none";
+            isScanning = false;
+        }, 1500); 
     }
 
     function tampilkanLoadingLayarPenuh() {
         const alertBox = document.getElementById('fullscreen-alert');
-        alertBox.className = "bg-blue"; alertBox.style.display = "flex";
-        document.getElementById('alert-icon').innerHTML = `<div class="spinner"></div>`; document.getElementById('alert-icon').className = "";
-        document.getElementById('alert-title').innerHTML = "MEMPROSES DATA..."; document.getElementById('alert-desc').innerHTML = `Mengirim ke Server.<br>Pastikan Nama Anda Muncul di Layar Hijau.`;
+        alertBox.className = "bg-blue";
+        alertBox.style.display = "flex";
+        document.getElementById('alert-icon').innerHTML = `<div class="spinner"></div>`;
+        document.getElementById('alert-icon').className = "";
+        document.getElementById('alert-title').innerHTML = "MEMPROSES DATA...";
+        document.getElementById('alert-desc').innerHTML = `Mengirim ke Database.<br>Jangan jauhkan kartu.`;
     }
 
     function playBeep() {
@@ -242,16 +288,25 @@
             playPromise.catch(error => {
                 try {
                     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                    const osc = audioCtx.createOscillator(); const gainNode = audioCtx.createGain();
-                    osc.frequency.value = 1000; osc.connect(gainNode); gainNode.connect(audioCtx.destination);
-                    osc.start(); gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.15); osc.stop(audioCtx.currentTime + 0.15);
+                    const osc = audioCtx.createOscillator();
+                    const gainNode = audioCtx.createGain();
+                    osc.frequency.value = 1000; 
+                    osc.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+                    osc.start();
+                    gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.15);
+                    osc.stop(audioCtx.currentTime + 0.15);
                 } catch (e) {}
             });
         }
         if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
     }
 
+    // ==========================================
+    // PROSES SAAT KARTU DI-SCAN (SMART ROUTING)
+    // ==========================================
     function onScanSuccess(decodedText) {
+      // CEK KEAMANAN GANDA: Pastikan Koordinat tidak kosong saat scan terjadi
       if(!userLat || !userLng) {
           tampilkanErrorLayarPenuh(`Menunggu Satelit GPS...<br><span style='font-size:12px;'>Mohon tunggu hingga indikator GPS berwarna hijau.</span>`);
           return;
@@ -261,16 +316,12 @@
       isScanning = true;
       playBeep();
 
+      // Bersihkan dan ambil angkanya saja
       let cleanId = decodedText.trim();
-      let finalId = cleanId;
+      let ekstrak = cleanId.match(/\d+/g);
+      let finalId = ekstrak ? ekstrak.join('') : cleanId.replace(/\s+/g, '');
 
-      let ekstrak = cleanId.match(/(?:NIP|ID)\s*[:=\-]?\s*([a-zA-Z0-9]+)/i);
-      if (ekstrak && ekstrak[1]) {
-          finalId = ekstrak[1];
-      } else {
-          finalId = cleanId.replace(/\s+/g, '');
-      }
-
+      // 1. CEK SCAN GANDA (DOUBLE SCAN)
       const now = new Date();
       if (recentScans[finalId]) {
           const lastScan = new Date(recentScans[finalId]);
@@ -279,9 +330,23 @@
           
           if (diffMins < 15) {
               const sisaWaktu = Math.ceil(15 - diffMins);
-              tampilkanErrorLayarPenuh(`Anda Baru Saja Melakukan Scan.<br><br><span style='font-size:13px; opacity:0.8;'>Sistem menolak scan ganda untuk mencegah data dobel.<br>Silakan tunggu ${sisaWaktu} menit lagi.</span>`);
+              tampilkanErrorLayarPenuh(`Scan Ganda Ditolak.<br><span style='font-size:13px; opacity:0.8;'>Tunggu ${sisaWaktu} menit lagi.</span>`);
               return; 
           }
+      }
+
+      // 2. DETEKSI OTOMATIS: SISWA ATAU GURU BERDASARKAN JUMLAH DIGIT
+      let urlTujuan = "";
+      let labelTipe = "";
+
+      if (finalId.length === 10) { 
+          // Jika jumlah digit TEPAT 10, maka dipastikan SISWA
+          urlTujuan = urlServerSiswa;
+          labelTipe = "SISWA";
+      } else { 
+          // Jika jumlah digit BUKAN 10, maka dipastikan GURU/PEGAWAI
+          urlTujuan = urlServerGuru;
+          labelTipe = "GURU";
       }
 
       recentScans[finalId] = now.getTime();
@@ -291,11 +356,18 @@
                             now.getMinutes().toString().padStart(2, '0') + ":" + 
                             now.getSeconds().toString().padStart(2, '0');
 
-      const dataScan = { id: finalId, lat: userLat, lng: userLng, waktu_scan: jamScanClient };
+      const dataScan = {
+          id: finalId,
+          lat: userLat,
+          lng: userLng,
+          waktu_scan: jamScanClient,
+          tipe: labelTipe,
+          url: urlTujuan // Simpan URL tujuannya agar aman saat offline
+      };
 
       if (!navigator.onLine) {
          simpanKeAntrean(dataScan);
-         tampilkanSuksesLayarPenuh("TERSIMPAN OFFLINE", `QR Code terbaca.<br>Data akan dikirim ke server saat sinyal pulih.`);
+         tampilkanSuksesLayarPenuh(`TERSIPAN OFFLINE`, `Tipe: ${labelTipe}<br>Data akan dikirim saat sinyal pulih.`);
       } else {
          kirimKeServer(dataScan);
       }
@@ -304,75 +376,134 @@
     function simpanKeAntrean(data) {
       scanQueue.push(data);
       localStorage.setItem('absenQueueSmart', JSON.stringify(scanQueue));
+      
       const btn = document.getElementById('sync-btn');
-      if(btn.innerText === "Silahkan Lakukan Scan") { btn.innerText = ""; }
+      if(btn.innerText === "Silahkan Lakukan Scan") {
+          btn.innerText = "";
+      }
       updateQueueUI();
     }
 
+    // ==========================================
+    // FUNGSI KIRIM SERVER 
+    // ==========================================
     function kirimKeServer(dataScan) {
       tampilkanLoadingLayarPenuh(); 
+      
       const params = new URLSearchParams();
-      params.append("id", dataScan.id); params.append("lat", dataScan.lat);
-      params.append("lng", dataScan.lng); params.append("waktu_scan", dataScan.waktu_scan);
+      params.append("id", dataScan.id);
+      params.append("lat", dataScan.lat);
+      params.append("lng", dataScan.lng);
+      params.append("waktu_scan", dataScan.waktu_scan);
 
-      fetch(urlServer, { method: "POST", body: params })
+      // Gunakan URL yang sudah ditentukan dari deteksi digit
+      fetch(dataScan.url, { method: "POST", body: params })
       .then(res => res.text())
       .then(pesanFinal => {
           if (pesanFinal.includes("Berhasil")) {
-             let splitPesan = pesanFinal.split("|"); 
-             let namaGuru = splitPesan[1] || "GURU";
+             
+             let splitPesan = pesanFinal.split("|");
+             let namaPemilik = splitPesan[1] || dataScan.tipe; 
+             
              tampilkanSuksesLayarPenuh(
-                 "SUKSES", 
-                 `<span style="font-size:22px; font-weight:bold; display:block; margin: 10px 0; color:#fff; text-transform:uppercase;">${namaGuru}</span>
+                 `SUKSES (${dataScan.tipe})`, 
+                 `<span style="font-size:22px; font-weight:bold; display:block; margin: 10px 0; color:#fff; text-transform:uppercase;">${namaPemilik}</span>
                   <span style="font-size:12px; opacity:0.8;">Waktu Scan: ${dataScan.waktu_scan}</span>`
              );
+             
           } else {
              tampilkanErrorLayarPenuh(`GAGAL MENYIMPAN!<br><span style="font-size:12px;">Pesan Server: ${pesanFinal}</span>`);
-             delete recentScans[dataScan.id]; localStorage.setItem('recentScansKiosk', JSON.stringify(recentScans));
+             delete recentScans[dataScan.id]; 
+             localStorage.setItem('recentScansKiosk', JSON.stringify(recentScans));
           }
       })
       .catch(err => {
           simpanKeAntrean(dataScan);
           tampilkanSuksesLayarPenuh(
               "SUKSES (OFFLINE)", 
-              `<span style="font-size:16px; font-weight:bold; display:block; margin: 10px 0;">NIP: ${dataScan.id}</span>
+              `<span style="font-size:16px; font-weight:bold; display:block; margin: 10px 0;">ID ${dataScan.tipe}: ${dataScan.id}</span>
                <span style="font-size:12px; opacity:0.8;">Disimpan di HP. Dikirim saat sinyal pulih.</span>`
           );
       });
     }
 
+    // ==========================================
+    // FUNGSI SINKRONISASI OFFLINE SMART ROUTING
+    // ==========================================
     async function syncData() {
         if (scanQueue.length === 0 || !navigator.onLine || isSyncing) return;
-        isSyncing = true; isScanning = true; 
-        const btn = document.getElementById('sync-btn'); const totalData = scanQueue.length;
-        btn.disabled = true; btn.style.display = "block"; btn.style.backgroundColor = "#e67e22"; 
+        
+        isSyncing = true; 
+        isScanning = true; 
+        
+        const btn = document.getElementById('sync-btn');
+        const totalData = scanQueue.length;
+        
+        btn.disabled = true;
+        btn.style.display = "block";
+        btn.style.backgroundColor = "#e67e22"; 
+
         let sisaAntrean = [];
 
         for (let i = 0; i < totalData; i++) {
             btn.innerText = `Sedang Sinkron Data.... ${i + 1} dari ${totalData} data sudah terkirim. Harap Tunggu`;
+
             let dataScan = scanQueue[i];
             const params = new URLSearchParams();
-            params.append("id", dataScan.id); params.append("lat", dataScan.lat);
-            params.append("lng", dataScan.lng); params.append("waktu_scan", dataScan.waktu_scan);
+            params.append("id", dataScan.id);
+            params.append("lat", dataScan.lat);
+            params.append("lng", dataScan.lng);
+            params.append("waktu_scan", dataScan.waktu_scan);
 
-            try { await fetch(urlServer, { method: "POST", body: params }); } 
-            catch (error) { sisaAntrean.push(dataScan); }
+            try {
+                // Fetch ke URL yang tersimpan pada objek data masing-masing
+                await fetch(dataScan.url, { method: "POST", body: params });
+            } catch (error) {
+                sisaAntrean.push(dataScan); 
+            }
         }
 
-        scanQueue = sisaAntrean; localStorage.setItem('absenQueueSmart', JSON.stringify(scanQueue));
+        scanQueue = sisaAntrean;
+        localStorage.setItem('absenQueueSmart', JSON.stringify(scanQueue));
+        
         if (scanQueue.length === 0) {
-            btn.style.backgroundColor = "#27ae60"; btn.innerText = `Sukses Sinkron Data.... ${totalData} dari ${totalData} data sudah terkirim.`;
-            setTimeout(() => { btn.style.backgroundColor = "#27ae60"; btn.innerText = "Silahkan Lakukan Scan"; isSyncing = false; isScanning = false; updateQueueUI(); }, 4000);
+            btn.style.backgroundColor = "#27ae60"; 
+            btn.innerText = `Sukses Sinkron Data.... ${totalData} dari ${totalData} data sudah terkirim.`;
+            
+            setTimeout(() => {
+                btn.style.backgroundColor = "#27ae60"; 
+                btn.innerText = "Silahkan Lakukan Scan";
+                isSyncing = false; 
+                isScanning = false; 
+                updateQueueUI(); 
+            }, 4000);
+            
         } else {
-            btn.style.backgroundColor = "#c0392b"; btn.innerText = `Gagal! Sisa ${scanQueue.length} data tertunda.`;
-            setTimeout(() => { isSyncing = false; isScanning = false; btn.disabled = false; btn.style.backgroundColor = "#f39c12"; updateQueueUI(); }, 4000);
+            btn.style.backgroundColor = "#c0392b"; 
+            btn.innerText = `Gagal! Sisa ${scanQueue.length} data tertunda.`;
+            
+            setTimeout(() => {
+                isSyncing = false; 
+                isScanning = false; 
+                btn.disabled = false;
+                btn.style.backgroundColor = "#f39c12"; 
+                updateQueueUI(); 
+            }, 4000);
         }
     }
 
     function mulaiKamera() {
       html5QrcodeScanner.start(
         { facingMode: modeKamera }, 
-        { fps: 15, qrbox: function(vw, vh) { let m = Math.min(vw, vh); let b = Math.floor(m * 0.95); return { width: b, height: b }; }, aspectRatio: 1.0 }, 
+        { 
+            fps: 15, 
+            qrbox: function(viewfinderWidth, viewfinderHeight) {
+                let minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
+                let boxSize = Math.floor(minEdgeSize * 0.95); 
+                return { width: boxSize, height: boxSize };
+            }, 
+            aspectRatio: 1.0 
+        }, 
         onScanSuccess
       ).then(() => {
         isKameraAktif = true;
@@ -395,7 +526,7 @@
     window.onload = function() {
       updateQueueUI();
       html5QrcodeScanner = new Html5Qrcode("reader");
-      // PENTING: Lokasi dicari terlebih dahulu, jika dapat baru mulaiKamera() akan dipanggil otomatis
+      // PERUBAHAN: Jangan nyalakan kamera di sini. getLocation() yang akan menyalakannya
       getLocation();
     };
   </script>
