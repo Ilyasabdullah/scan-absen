@@ -78,7 +78,7 @@
 </head>
 <body>
   <h1>PRESENSI TERPADU</h1>
-  <p class="subtitle">Siswa & Guru - SMP NEGERI 1 MABA</p>
+  <p class="subtitle">SMP NEGERI 1 MABA</p>
 
   <div id="offline-badge">Koneksi Terputus - Mode Offline</div>
   <button id="sync-btn" onclick="syncData()">🔄 Sinkronisasi Data Tertunda (<span id="queue-count">0</span>)</button>
@@ -279,7 +279,7 @@
         document.getElementById('alert-icon').innerHTML = `<div class="spinner"></div>`;
         document.getElementById('alert-icon').className = "";
         document.getElementById('alert-title').innerHTML = "MEMPROSES DATA...";
-        document.getElementById('alert-desc').innerHTML = `Mengirim ke Server.<br>Jangan jauhkan kartu.`;
+        document.getElementById('alert-desc').innerHTML = `Mengirim ke Server.<br>Pastikan Nama Anda Tampil di Layar Hijau.`;
     }
 
     function playBeep() {
