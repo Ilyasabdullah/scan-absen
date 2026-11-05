@@ -9,7 +9,6 @@
   <link rel="icon" type="image/png" href="https://img.icons8.com/fluency/512/qr-code.png">
   <script src="https://unpkg.com/html5-qrcode"></script>
   
-  <!-- SCRIPT UNTUK MENGAKTIFKAN OFFLINE MODE (SERVICE WORKER) -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -28,18 +27,29 @@
     #offline-badge { background-color: #e74c3c; color: white; padding: 8px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; display: none; margin: 0 auto 15px auto; width: fit-content; animation: pulse 2s infinite; }
     #sync-btn { background-color: #f39c12; color: white; border: none; padding: 12px 20px; font-size: 15px; border-radius: 8px; cursor: pointer; font-weight: bold; display: none; margin: 10px auto; width: 100%; max-width: 400px; transition: background-color 0.3s ease;}
     
-    #reader-container { background-color: #000000; border-radius: 12px; padding: 5px; margin: 0 auto; max-width: 400px; position: relative; }
-    #reader { width: 100%; min-height: 300px; border-radius: 8px; overflow: hidden; border: 2px solid #3498db; }
+    /* MODIFIKASI CONTAINER READER */
+    #reader-container { background-color: #000000; border-radius: 12px; padding: 5px; margin: 0 auto; max-width: 400px; position: relative; overflow: hidden; min-height: 300px; border: 2px solid #3498db;}
+    #reader { width: 100%; height: 100%; border-radius: 8px; overflow: hidden; }
     #reader video { object-fit: cover !important; }
     
+    /* OVERLAY PERINGATAN GPS */
+    #gps-overlay {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background-color: rgba(15, 20, 30, 0.95);
+        z-index: 50; display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        text-align: center; padding: 20px; box-sizing: border-box;
+    }
+    .gps-icon { font-size: 50px; margin-bottom: 10px; animation: pulse 1.5s infinite; }
+    .gps-title { font-size: 20px; font-weight: bold; color: #e74c3c; margin-bottom: 10px; }
+    .gps-desc { font-size: 14px; color: #ecf0f1; line-height: 1.4; }
+
     .btn-kamera { background-color: #2980b9; color: white; border: none; padding: 12px 20px; font-size: 15px; border-radius: 8px; cursor: pointer; margin-top: 15px; font-weight: bold; width: 100%; max-width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: 0.2s; }
     .btn-kamera:active { background-color: #1f6391; transform: translateY(2px); }
+    .btn-kamera:disabled { background-color: #7f8c8d; cursor: not-allowed; }
     
     .footer-status { color: #5c6b82; font-size: 12px; margin-top: 20px; line-height: 1.8; }
 
-    /* ========================================= */
-    /* ANIMASI FEEDBACK LAYAR PENUH */
-    /* ========================================= */
     #fullscreen-alert {
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
         z-index: 9999; display: none; flex-direction: column; align-items: center; justify-content: center;
@@ -70,15 +80,21 @@
   <button id="sync-btn" onclick="syncData()">🔄 Sinkronisasi Data Tertunda (<span id="queue-count">0</span>)</button>
   
   <div id="reader-container">
+    <!-- OVERLAY GPS -->
+    <div id="gps-overlay">
+        <div class="gps-icon">📍</div>
+        <div class="gps-title" id="gps-overlay-title">SEDANG MENGAMBIL LOKASI...</div>
+        <div class="gps-desc" id="gps-overlay-desc">Mohon tunggu. Kamera akan aktif secara otomatis setelah lokasi satelit terkunci. Pastikan GPS HP Anda menyala.</div>
+    </div>
     <div id="reader"></div>
   </div>
   
-  <button class="btn-kamera" onclick="gantiKamera()">🔄 Ganti Kamera</button>
+  <button class="btn-kamera" id="btn-ganti-kamera" onclick="gantiKamera()" disabled>🔄 Ganti Kamera</button>
 
   <div class="footer-status">
-    <span id="cam-status">Kamera: Menyiapkan...</span><br>
+    <span id="cam-status">Kamera: Menunggu Izin Lokasi...</span><br>
     <span id="db-status">Sistem Siap Digunakan.</span><br>
-    <span id="gps-status">GPS: Memeriksa Lokasi...</span>
+    <span id="gps-status" style="color:#f1c40f; font-weight:bold;">GPS: Sedang mencari satelit...</span>
   </div>
 
   <div id="fullscreen-alert">
@@ -89,8 +105,9 @@
 
   <script>
     // ============================================================
-    // 1. MASUKKAN URL GOOGLE APPS SCRIPT TUNGGAL ANDA DI SINI
+    // 1. MASUKKAN URL GOOGLE APPS SCRIPT (GURU) ANDA DI SINI
     // ============================================================
+    // Ganti tulisan di bawah ini dengan URL Web App milik Guru
     const urlServer = "https://script.google.com/macros/s/AKfycbwBAOqB_Fif8pT1pYLhy_bA_JKEFotH2BsqzYvA5MzsKweD8XetcoeoIfMPkMgL1HAcyQ/exec"; 
     // ============================================================
     
@@ -102,6 +119,7 @@
     
     let isScanning = false;
     let isSyncing = false; 
+    let isKameraAktif = false;
     
     let scanQueue = JSON.parse(localStorage.getItem('absenQueueSmart')) || [];
     let recentScans = JSON.parse(localStorage.getItem('recentScansKiosk')) || {};
@@ -119,105 +137,103 @@
     
     function updateQueueUI() {
       if (isSyncing) return;
-
       const btn = document.getElementById('sync-btn');
       const badge = document.getElementById('offline-badge');
       const count = document.getElementById('queue-count');
-      
       if (count) count.innerText = scanQueue.length;
       
       if (!navigator.onLine) {
         badge.style.display = 'block';
         badge.innerText = "Tidak Ada Internet - Tetap Scan Kartu";
-        
         if (scanQueue.length > 0) {
-            btn.style.display = 'block';
-            btn.style.backgroundColor = "#f39c12"; 
-            btn.innerText = `🔄 Sinkronisasi Data Tertunda (${scanQueue.length})`;
-            btn.disabled = false;
-        } else {
-            btn.style.display = 'none';
-        }
+            btn.style.display = 'block'; btn.style.backgroundColor = "#f39c12"; 
+            btn.innerText = `🔄 Sinkronisasi Data Tertunda (${scanQueue.length})`; btn.disabled = false;
+        } else { btn.style.display = 'none'; }
       } else {
         badge.style.display = 'none';
-        
         if (scanQueue.length > 0) {
-            btn.style.display = 'block';
-            btn.style.backgroundColor = "#f39c12"; 
-            btn.innerText = `🔄 Sinkronisasi Data Tertunda (${scanQueue.length})`;
-            btn.disabled = false;
+            btn.style.display = 'block'; btn.style.backgroundColor = "#f39c12"; 
+            btn.innerText = `🔄 Sinkronisasi Data Tertunda (${scanQueue.length})`; btn.disabled = false;
         } else {
             if (btn.innerText === "Silahkan Lakukan Scan") {
-                btn.style.display = 'block';
-                btn.style.backgroundColor = "#27ae60"; 
-                btn.disabled = true; 
-            } else {
-                btn.style.display = 'none';
-            }
+                btn.style.display = 'block'; btn.style.backgroundColor = "#27ae60"; btn.disabled = true; 
+            } else { btn.style.display = 'none'; }
         }
       }
     }
 
-    window.addEventListener('online', () => {
-        updateQueueUI();
-        if (scanQueue.length > 0) syncData();
-    });
+    window.addEventListener('online', () => { updateQueueUI(); if (scanQueue.length > 0) syncData(); });
     window.addEventListener('offline', updateQueueUI);
 
+    // ==========================================
+    // LOGIKA PERMINTAAN LOKASI (GPS LOCK)
+    // ==========================================
     function getLocation() {
       if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(p => {
-          userLat = p.coords.latitude; userLng = p.coords.longitude;
-          document.getElementById('gps-status').innerText = "GPS: " + userLat.toFixed(5) + ", " + userLng.toFixed(5);
-          document.getElementById('gps-status').style.color = "#3498db";
-        }, e => { 
-          document.getElementById('gps-status').innerText = "GPS: Izin Ditolak"; 
-          document.getElementById('gps-status').style.color = "#ff6b6b";
-        }, { enableHighAccuracy: true });
+        navigator.geolocation.watchPosition(
+          function(p) {
+            userLat = p.coords.latitude; 
+            userLng = p.coords.longitude;
+            
+            document.getElementById('gps-overlay').style.display = 'none';
+            document.getElementById('btn-ganti-kamera').disabled = false;
+            
+            document.getElementById('gps-status').innerText = "GPS: " + userLat.toFixed(5) + ", " + userLng.toFixed(5);
+            document.getElementById('gps-status').style.color = "#2ecc71"; 
+            
+            if (!isKameraAktif) {
+                mulaiKamera();
+            }
+          }, 
+          function(e) { 
+            const gpsTitle = document.getElementById('gps-overlay-title');
+            const gpsDesc = document.getElementById('gps-overlay-desc');
+            const gpsStatus = document.getElementById('gps-status');
+
+            if (e.code === e.PERMISSION_DENIED) {
+                gpsTitle.innerHTML = "IZIN LOKASI DITOLAK!";
+                gpsDesc.innerHTML = "Sistem absensi membutuhkan akses lokasi. Silakan izinkan akses lokasi pada browser Anda lalu muat ulang halaman ini.";
+                gpsStatus.innerText = "GPS: Izin Ditolak"; 
+            } else {
+                gpsTitle.innerHTML = "GPS TIDAK AKTIF!";
+                gpsDesc.innerHTML = "Nyalakan fitur GPS (Lokasi) di pengaturan HP Anda.";
+                gpsStatus.innerText = "GPS: Gagal mencari satelit"; 
+            }
+            
+            gpsStatus.style.color = "#e74c3c"; 
+            document.getElementById('gps-overlay').style.display = 'flex';
+          }, 
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+      } else {
+          document.getElementById('gps-overlay-title').innerHTML = "BROWSER TIDAK MENDUKUNG GPS";
+          document.getElementById('gps-overlay-desc').innerHTML = "Harap gunakan browser Chrome atau Safari versi terbaru.";
+          document.getElementById('gps-status').innerText = "GPS: Tidak Didukung"; 
+          document.getElementById('gps-status').style.color = "#e74c3c";
       }
     }
 
-    // ==========================================
-    // FUNGSI ANIMASI KILAT (1 DETIK SAJA)
-    // ==========================================
     function tampilkanSuksesLayarPenuh(judul, pesanHTML) {
         const alertBox = document.getElementById('fullscreen-alert');
-        alertBox.className = "bg-green";
-        alertBox.style.display = "flex";
-        document.getElementById('alert-icon').innerHTML = "✅";
-        document.getElementById('alert-icon').className = "alert-icon animate-pulse-icon";
-        document.getElementById('alert-title').innerHTML = judul;
-        document.getElementById('alert-desc').innerHTML = pesanHTML;
-        
-        setTimeout(() => {
-            alertBox.style.display = "none";
-            isScanning = false; 
-        }, 1000); 
+        alertBox.className = "bg-green"; alertBox.style.display = "flex";
+        document.getElementById('alert-icon').innerHTML = "✅"; document.getElementById('alert-icon').className = "alert-icon animate-pulse-icon";
+        document.getElementById('alert-title').innerHTML = judul; document.getElementById('alert-desc').innerHTML = pesanHTML;
+        setTimeout(() => { alertBox.style.display = "none"; isScanning = false; }, 1000); 
     }
 
     function tampilkanErrorLayarPenuh(pesanHTML) {
         const alertBox = document.getElementById('fullscreen-alert');
-        alertBox.className = "bg-red";
-        alertBox.style.display = "flex";
-        document.getElementById('alert-icon').innerHTML = "❌";
-        document.getElementById('alert-icon').className = "alert-icon";
-        document.getElementById('alert-title').innerHTML = "PERHATIAN!";
-        document.getElementById('alert-desc').innerHTML = pesanHTML;
-        
-        setTimeout(() => {
-            alertBox.style.display = "none";
-            isScanning = false;
-        }, 1500); 
+        alertBox.className = "bg-red"; alertBox.style.display = "flex";
+        document.getElementById('alert-icon').innerHTML = "❌"; document.getElementById('alert-icon').className = "alert-icon";
+        document.getElementById('alert-title').innerHTML = "PERHATIAN!"; document.getElementById('alert-desc').innerHTML = pesanHTML;
+        setTimeout(() => { alertBox.style.display = "none"; isScanning = false; }, 1500); 
     }
 
     function tampilkanLoadingLayarPenuh() {
         const alertBox = document.getElementById('fullscreen-alert');
-        alertBox.className = "bg-blue";
-        alertBox.style.display = "flex";
-        document.getElementById('alert-icon').innerHTML = `<div class="spinner"></div>`;
-        document.getElementById('alert-icon').className = "";
-        document.getElementById('alert-title').innerHTML = "MEMPROSES DATA...";
-        document.getElementById('alert-desc').innerHTML = `Mengirim ke Server.<br>Jangan jauhkan kartu.`;
+        alertBox.className = "bg-blue"; alertBox.style.display = "flex";
+        document.getElementById('alert-icon').innerHTML = `<div class="spinner"></div>`; document.getElementById('alert-icon').className = "";
+        document.getElementById('alert-title').innerHTML = "MEMPROSES DATA..."; document.getElementById('alert-desc').innerHTML = `Mengirim ke Server.<br>Jangan jauhkan kartu.`;
     }
 
     function playBeep() {
@@ -226,24 +242,21 @@
             playPromise.catch(error => {
                 try {
                     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                    const osc = audioCtx.createOscillator();
-                    const gainNode = audioCtx.createGain();
-                    osc.frequency.value = 1000; 
-                    osc.connect(gainNode);
-                    gainNode.connect(audioCtx.destination);
-                    osc.start();
-                    gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.15);
-                    osc.stop(audioCtx.currentTime + 0.15);
+                    const osc = audioCtx.createOscillator(); const gainNode = audioCtx.createGain();
+                    osc.frequency.value = 1000; osc.connect(gainNode); gainNode.connect(audioCtx.destination);
+                    osc.start(); gainNode.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + 0.15); osc.stop(audioCtx.currentTime + 0.15);
                 } catch (e) {}
             });
         }
         if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
     }
 
-    // ==========================================
-    // PROSES SAAT KARTU DI-SCAN
-    // ==========================================
     function onScanSuccess(decodedText) {
+      if(!userLat || !userLng) {
+          tampilkanErrorLayarPenuh(`Menunggu Satelit GPS...<br><span style='font-size:12px;'>Mohon tunggu hingga indikator GPS berwarna hijau.</span>`);
+          return;
+      }
+        
       if(isScanning || isSyncing) return; 
       isScanning = true;
       playBeep();
@@ -251,8 +264,7 @@
       let cleanId = decodedText.trim();
       let finalId = cleanId;
 
-      // Tetap bersihkan format jika ID menggunakan format campuran
-      let ekstrak = cleanId.match(/(?:NISN|NIP|ID)\s*[:=\-]?\s*([a-zA-Z0-9]+)/i);
+      let ekstrak = cleanId.match(/(?:NIP|ID)\s*[:=\-]?\s*([a-zA-Z0-9]+)/i);
       if (ekstrak && ekstrak[1]) {
           finalId = ekstrak[1];
       } else {
@@ -279,12 +291,7 @@
                             now.getMinutes().toString().padStart(2, '0') + ":" + 
                             now.getSeconds().toString().padStart(2, '0');
 
-      const dataScan = {
-          id: finalId,
-          lat: userLat,
-          lng: userLng,
-          waktu_scan: jamScanClient
-      };
+      const dataScan = { id: finalId, lat: userLat, lng: userLng, waktu_scan: jamScanClient };
 
       if (!navigator.onLine) {
          simpanKeAntrean(dataScan);
@@ -297,140 +304,78 @@
     function simpanKeAntrean(data) {
       scanQueue.push(data);
       localStorage.setItem('absenQueueSmart', JSON.stringify(scanQueue));
-      
       const btn = document.getElementById('sync-btn');
-      if(btn.innerText === "Silahkan Lakukan Scan") {
-          btn.innerText = "";
-      }
+      if(btn.innerText === "Silahkan Lakukan Scan") { btn.innerText = ""; }
       updateQueueUI();
     }
 
-    // ==========================================
-    // FUNGSI KIRIM SERVER DENGAN TAMPILAN NAMA GURU
-    // ==========================================
     function kirimKeServer(dataScan) {
-      // Tampilkan layar biru loading saat mengirim ke Google
       tampilkanLoadingLayarPenuh(); 
-      
       const params = new URLSearchParams();
-      params.append("id", dataScan.id);
-      params.append("lat", dataScan.lat);
-      params.append("lng", dataScan.lng);
-      params.append("waktu_scan", dataScan.waktu_scan);
+      params.append("id", dataScan.id); params.append("lat", dataScan.lat);
+      params.append("lng", dataScan.lng); params.append("waktu_scan", dataScan.waktu_scan);
 
       fetch(urlServer, { method: "POST", body: params })
       .then(res => res.text())
       .then(pesanFinal => {
-          // Jika jawaban dari Google Apps Script mengandung kata "Berhasil"
           if (pesanFinal.includes("Berhasil")) {
-             
-             // Pecah pesan "Berhasil|Nama Guru" berdasarkan simbol garis tegak (|)
-             let splitPesan = pesanFinal.split("|");
-             let namaGuru = splitPesan[1] || "GURU"; // Jika nama kosong, default tulisan GURU
-             
-             // Tampilkan layar hijau sukses dengan NAMA GURU HURUF TEBAL
+             let splitPesan = pesanFinal.split("|"); 
+             let namaGuru = splitPesan[1] || "GURU";
              tampilkanSuksesLayarPenuh(
                  "SUKSES", 
                  `<span style="font-size:22px; font-weight:bold; display:block; margin: 10px 0; color:#fff; text-transform:uppercase;">${namaGuru}</span>
                   <span style="font-size:12px; opacity:0.8;">Waktu Scan: ${dataScan.waktu_scan}</span>`
              );
-             
           } else {
              tampilkanErrorLayarPenuh(`GAGAL MENYIMPAN!<br><span style="font-size:12px;">Pesan Server: ${pesanFinal}</span>`);
-             delete recentScans[dataScan.id]; 
-             localStorage.setItem('recentScansKiosk', JSON.stringify(recentScans));
+             delete recentScans[dataScan.id]; localStorage.setItem('recentScansKiosk', JSON.stringify(recentScans));
           }
       })
       .catch(err => {
-          // Jika saat scan internet HP tiba-tiba hilang (Mode Offline)
           simpanKeAntrean(dataScan);
           tampilkanSuksesLayarPenuh(
               "SUKSES (OFFLINE)", 
-              `<span style="font-size:16px; font-weight:bold; display:block; margin: 10px 0;">NIP/ID: ${dataScan.id}</span>
+              `<span style="font-size:16px; font-weight:bold; display:block; margin: 10px 0;">NIP: ${dataScan.id}</span>
                <span style="font-size:12px; opacity:0.8;">Disimpan di HP. Dikirim saat sinyal pulih.</span>`
           );
       });
     }
 
-    // ==========================================
-    // FUNGSI SINKRONISASI OFFLINE
-    // ==========================================
     async function syncData() {
         if (scanQueue.length === 0 || !navigator.onLine || isSyncing) return;
-        
-        isSyncing = true; 
-        isScanning = true; 
-        
-        const btn = document.getElementById('sync-btn');
-        const totalData = scanQueue.length;
-        
-        btn.disabled = true;
-        btn.style.display = "block";
-        btn.style.backgroundColor = "#e67e22"; 
-
+        isSyncing = true; isScanning = true; 
+        const btn = document.getElementById('sync-btn'); const totalData = scanQueue.length;
+        btn.disabled = true; btn.style.display = "block"; btn.style.backgroundColor = "#e67e22"; 
         let sisaAntrean = [];
 
         for (let i = 0; i < totalData; i++) {
             btn.innerText = `Sedang Sinkron Data.... ${i + 1} dari ${totalData} data sudah terkirim. Harap Tunggu`;
-
             let dataScan = scanQueue[i];
             const params = new URLSearchParams();
-            params.append("id", dataScan.id);
-            params.append("lat", dataScan.lat);
-            params.append("lng", dataScan.lng);
-            params.append("waktu_scan", dataScan.waktu_scan);
+            params.append("id", dataScan.id); params.append("lat", dataScan.lat);
+            params.append("lng", dataScan.lng); params.append("waktu_scan", dataScan.waktu_scan);
 
-            try {
-                // KETUK 1 URL SAJA
-                await fetch(urlServer, { method: "POST", body: params });
-            } catch (error) {
-                sisaAntrean.push(dataScan); 
-            }
+            try { await fetch(urlServer, { method: "POST", body: params }); } 
+            catch (error) { sisaAntrean.push(dataScan); }
         }
 
-        scanQueue = sisaAntrean;
-        localStorage.setItem('absenQueueSmart', JSON.stringify(scanQueue));
-        
+        scanQueue = sisaAntrean; localStorage.setItem('absenQueueSmart', JSON.stringify(scanQueue));
         if (scanQueue.length === 0) {
-            btn.style.backgroundColor = "#27ae60"; 
-            btn.innerText = `Sukses Sinkron Data.... ${totalData} dari ${totalData} data sudah terkirim.`;
-            
-            setTimeout(() => {
-                btn.style.backgroundColor = "#27ae60"; 
-                btn.innerText = "Silahkan Lakukan Scan";
-                isSyncing = false; 
-                isScanning = false; 
-                updateQueueUI(); 
-            }, 4000);
-            
+            btn.style.backgroundColor = "#27ae60"; btn.innerText = `Sukses Sinkron Data.... ${totalData} dari ${totalData} data sudah terkirim.`;
+            setTimeout(() => { btn.style.backgroundColor = "#27ae60"; btn.innerText = "Silahkan Lakukan Scan"; isSyncing = false; isScanning = false; updateQueueUI(); }, 4000);
         } else {
-            btn.style.backgroundColor = "#c0392b"; 
-            btn.innerText = `Gagal! Sisa ${scanQueue.length} data tertunda.`;
-            
-            setTimeout(() => {
-                isSyncing = false; 
-                isScanning = false; 
-                btn.disabled = false;
-                btn.style.backgroundColor = "#f39c12"; 
-                updateQueueUI(); 
-            }, 4000);
+            btn.style.backgroundColor = "#c0392b"; btn.innerText = `Gagal! Sisa ${scanQueue.length} data tertunda.`;
+            setTimeout(() => { isSyncing = false; isScanning = false; btn.disabled = false; btn.style.backgroundColor = "#f39c12"; updateQueueUI(); }, 4000);
         }
     }
 
     function mulaiKamera() {
       html5QrcodeScanner.start(
         { facingMode: modeKamera }, 
-        { 
-            fps: 15, 
-            qrbox: function(viewfinderWidth, viewfinderHeight) {
-                let minEdgeSize = Math.min(viewfinderWidth, viewfinderHeight);
-                let boxSize = Math.floor(minEdgeSize * 0.95); 
-                return { width: boxSize, height: boxSize };
-            }, 
-            aspectRatio: 1.0 
-        }, 
+        { fps: 15, qrbox: function(vw, vh) { let m = Math.min(vw, vh); let b = Math.floor(m * 0.95); return { width: b, height: b }; }, aspectRatio: 1.0 }, 
         onScanSuccess
       ).then(() => {
+        isKameraAktif = true;
         document.getElementById('cam-status').innerText = "Kamera: Aktif (" + (modeKamera === "user" ? "Depan" : "Belakang") + ")";
       }).catch(err => {
         document.getElementById('cam-status').innerText = "Gagal akses kamera: " + err;
@@ -438,8 +383,9 @@
     }
 
     function gantiKamera() {
-      if (!isScanning) {
+      if (!isScanning && isKameraAktif) {
           html5QrcodeScanner.stop().then(() => {
+            isKameraAktif = false;
             modeKamera = (modeKamera === "environment") ? "user" : "environment";
             setTimeout(() => { mulaiKamera(); }, 300);
           }).catch(err => console.log(err));
@@ -448,9 +394,9 @@
 
     window.onload = function() {
       updateQueueUI();
-      getLocation();
       html5QrcodeScanner = new Html5Qrcode("reader");
-      mulaiKamera();
+      // PENTING: Lokasi dicari terlebih dahulu, jika dapat baru mulaiKamera() akan dipanggil otomatis
+      getLocation();
     };
   </script>
 </body>
