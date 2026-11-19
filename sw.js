@@ -1,4 +1,4 @@
-const CACHE_NAME = 'presensi-kiosk-v3'; // Naikkan versi cache
+const CACHE_NAME = 'presensi-kiosk-v4'; // Naikkan versi agar SW lama otomatis terhapus
 const urlsToCache = [
   '/',
   '/index.html',
@@ -7,7 +7,7 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', event => {
-  self.skipWaiting(); // Memaksa SW baru langsung menimpa yang lama
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
   );
@@ -18,27 +18,35 @@ self.addEventListener('activate', event => {
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
-          // Hapus semua memori cache versi lama
-          if (cacheName !== CACHE_NAME) return caches.delete(cacheName); 
+          if (cacheName !== CACHE_NAME) return caches.delete(cacheName);
         })
       );
-    }).then(() => self.clients.claim()) 
+    }).then(() => self.clients.claim())
   );
 });
 
-// STRATEGI: NETWORK FIRST (Selalu ambil update terbaru dari Vercel jika internet nyala)
+// STRATEGI: NETWORK FIRST (KHUSUS FILE STATIS GET, JANGAN CEGAT POST / GOOGLE SCRIPT)
 self.addEventListener('fetch', event => {
+  if (
+    event.request.method !== 'GET' ||
+    event.request.url.includes('script.google.com') ||
+    event.request.url.includes('script.googleusercontent.com')
+  ) {
+    return;
+  }
+
   event.respondWith(
     fetch(event.request).then(response => {
-      // Jika berhasil ambil dari internet, simpan ke cache sebagai backup
-      return caches.open(CACHE_NAME).then(cache => {
-        cache.put(event.request, response.clone());
-        return response;
-      });
+      if (response && response.status === 200) {
+        const responseClone = response.clone();
+        caches.open(CACHE_NAME).then(cache => {
+          cache.put(event.request, responseClone).catch(() => {});
+        });
+      }
+      return response;
     }).catch(() => {
-      // Jika internet mati (fetch gagal), baru keluarkan dari cache
       return caches.match(event.request).then(response => {
-         return response || caches.match('/index.html');
+        return response || caches.match('/index.html');
       });
     })
   );
