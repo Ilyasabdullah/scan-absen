@@ -389,39 +389,32 @@
     // ==========================================
     function kirimKeServer(dataScan) {
       tampilkanLoadingLayarPenuh(); 
-      
       const params = new URLSearchParams();
-      params.append("id", dataScan.id);
-      params.append("lat", dataScan.lat);
-      params.append("lng", dataScan.lng);
-      params.append("waktu_scan", dataScan.waktu_scan);
+      params.append("id", dataScan.id); params.append("lat", dataScan.lat);
+      params.append("lng", dataScan.lng); params.append("waktu_scan", dataScan.waktu_scan);
 
-      // Gunakan URL yang sudah ditentukan dari deteksi digit
-      fetch(dataScan.url, { method: "POST", body: params })
+      fetch(urlServer, { method: "POST", body: params })
       .then(res => res.text())
       .then(pesanFinal => {
-          if (pesanFinal.includes("Berhasil")) {
-             
-             let splitPesan = pesanFinal.split("|");
-             let namaPemilik = splitPesan[1] || dataScan.tipe; 
-             
+          const teksBersih = pesanFinal.trim();
+          if (teksBersih.startsWith("Berhasil|")) {
+             let splitPesan = teksBersih.split("|");
+             let namaSiswa = splitPesan[1] ? splitPesan[1].trim() : "Siswa";
              tampilkanSuksesLayarPenuh(
-                 `SUKSES (${dataScan.tipe})`, 
-                 `<span style="font-size:22px; font-weight:bold; display:block; margin: 10px 0; color:#fff; text-transform:uppercase;">${namaPemilik}</span>
+                 "SUKSES", 
+                 `<span style="font-size:22px; font-weight:bold; display:block; margin: 10px 0; color:#fff; text-transform:uppercase;">${namaSiswa}</span>
                   <span style="font-size:12px; opacity:0.8;">Waktu Scan: ${dataScan.waktu_scan}</span>`
              );
-             
           } else {
-             tampilkanErrorLayarPenuh(`GAGAL MENYIMPAN!<br><span style="font-size:12px;">Pesan Server: ${pesanFinal}</span>`);
-             delete recentScans[dataScan.id]; 
-             localStorage.setItem('recentScansKiosk', JSON.stringify(recentScans));
+             tampilkanErrorLayarPenuh(`GAGAL MENYIMPAN!<br><span style="font-size:12px;">Pesan Server: ${teksBersih}</span>`);
+             delete recentScans[dataScan.id]; localStorage.setItem('recentScansKiosk', JSON.stringify(recentScans));
           }
       })
       .catch(err => {
           simpanKeAntrean(dataScan);
           tampilkanSuksesLayarPenuh(
               "SUKSES (OFFLINE)", 
-              `<span style="font-size:16px; font-weight:bold; display:block; margin: 10px 0;">ID ${dataScan.tipe}: ${dataScan.id}</span>
+              `<span style="font-size:16px; font-weight:bold; display:block; margin: 10px 0;">NISN: ${dataScan.id}</span>
                <span style="font-size:12px; opacity:0.8;">Disimpan di HP. Dikirim saat sinyal pulih.</span>`
           );
       });
@@ -432,63 +425,36 @@
     // ==========================================
     async function syncData() {
         if (scanQueue.length === 0 || !navigator.onLine || isSyncing) return;
-        
-        isSyncing = true; 
-        isScanning = true; 
-        
-        const btn = document.getElementById('sync-btn');
-        const totalData = scanQueue.length;
-        
-        btn.disabled = true;
-        btn.style.display = "block";
-        btn.style.backgroundColor = "#e67e22"; 
-
+        isSyncing = true; isScanning = true; 
+        const btn = document.getElementById('sync-btn'); const totalData = scanQueue.length;
+        btn.disabled = true; btn.style.display = "block"; btn.style.backgroundColor = "#e67e22"; 
         let sisaAntrean = [];
 
         for (let i = 0; i < totalData; i++) {
             btn.innerText = `Sedang Sinkron Data.... ${i + 1} dari ${totalData} data sudah terkirim. Harap Tunggu`;
-
             let dataScan = scanQueue[i];
             const params = new URLSearchParams();
-            params.append("id", dataScan.id);
-            params.append("lat", dataScan.lat);
-            params.append("lng", dataScan.lng);
-            params.append("waktu_scan", dataScan.waktu_scan);
+            params.append("id", dataScan.id); params.append("lat", dataScan.lat);
+            params.append("lng", dataScan.lng); params.append("waktu_scan", dataScan.waktu_scan);
 
             try {
-                // Fetch ke URL yang tersimpan pada objek data masing-masing
-                await fetch(dataScan.url, { method: "POST", body: params });
+                const res = await fetch(urlServer, { method: "POST", body: params });
+                const teks = (await res.text()).trim();
+                if (!teks.startsWith("Berhasil|")) {
+                    sisaAntrean.push(dataScan);
+                }
             } catch (error) {
-                sisaAntrean.push(dataScan); 
+                sisaAntrean.push(dataScan);
             }
         }
 
-        scanQueue = sisaAntrean;
-        localStorage.setItem('absenQueueSmart', JSON.stringify(scanQueue));
-        
+        scanQueue = sisaAntrean; localStorage.setItem('absenQueueSmart', JSON.stringify(scanQueue));
         if (scanQueue.length === 0) {
-            btn.style.backgroundColor = "#27ae60"; 
-            btn.innerText = `Sukses Sinkron Data.... ${totalData} dari ${totalData} data sudah terkirim.`;
-            
-            setTimeout(() => {
-                btn.style.backgroundColor = "#27ae60"; 
-                btn.innerText = "Silahkan Lakukan Scan";
-                isSyncing = false; 
-                isScanning = false; 
-                updateQueueUI(); 
-            }, 4000);
-            
+            btn.style.backgroundColor = "#27ae60"; btn.innerText = `Sukses Sinkron Data.... ${totalData} dari ${totalData} data sudah terkirim.`;
+            setTimeout(() => { btn.style.backgroundColor = "#27ae60"; btn.innerText = "Silahkan Lakukan Scan"; isSyncing = false; isScanning = false; updateQueueUI(); }, 4000);
         } else {
-            btn.style.backgroundColor = "#c0392b"; 
-            btn.innerText = `Gagal! Sisa ${scanQueue.length} data tertunda.`;
-            
-            setTimeout(() => {
-                isSyncing = false; 
-                isScanning = false; 
-                btn.disabled = false;
-                btn.style.backgroundColor = "#f39c12"; 
-                updateQueueUI(); 
-            }, 4000);
+            btn.style.backgroundColor = "#c0392b"; btn.innerText = `Gagal! Sisa ${scanQueue.length} data tertunda.`;
+            setTimeout(() => { isSyncing = false; isScanning = false; btn.disabled = false; btn.style.backgroundColor = "#f39c12"; updateQueueUI(); }, 4000);
         }
     }
 
