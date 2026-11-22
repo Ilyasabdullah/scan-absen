@@ -1,4 +1,4 @@
-const CACHE_NAME = 'presensi-kiosk-v4'; // Naikkan versi agar SW lama otomatis terhapus
+const CACHE_NAME = 'presensi-kiosk-v5';
 const urlsToCache = [
   '/',
   '/index.html',
