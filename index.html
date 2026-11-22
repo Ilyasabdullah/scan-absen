@@ -27,8 +27,25 @@
     #offline-badge { background-color: #e74c3c; color: white; padding: 8px 15px; border-radius: 20px; font-size: 12px; font-weight: bold; display: none; margin: 0 auto 15px auto; width: fit-content; animation: pulse 2s infinite; }
     #sync-btn { background-color: #f39c12; color: white; border: none; padding: 12px 20px; font-size: 15px; border-radius: 8px; cursor: pointer; font-weight: bold; display: none; margin: 10px auto; width: 100%; max-width: 400px; transition: background-color 0.3s ease;}
     
+    /* BANNER MODE PULANG SAKIT */
+    #sakit-banner {
+      display: none;
+      background-color: #f39c12;
+      color: #111827;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: bold;
+      margin: 0 auto 12px auto;
+      max-width: 400px;
+      box-sizing: border-box;
+      border: 2px solid #fde68a;
+      animation: pulse 1.5s infinite;
+    }
+
     /* MODIFIKASI CONTAINER READER */
-    #reader-container { background-color: #000000; border-radius: 12px; padding: 5px; margin: 0 auto; max-width: 400px; position: relative; overflow: hidden; min-height: 300px; border: 2px solid #3498db;}
+    #reader-container { background-color: #000000; border-radius: 12px; padding: 5px; margin: 0 auto; max-width: 400px; position: relative; overflow: hidden; min-height: 300px; border: 2px solid #3498db; transition: border-color 0.25s ease, box-shadow 0.25s ease; }
+    #reader-container.mode-sakit { border: 4px solid #f39c12; box-shadow: 0 0 22px rgba(243, 156, 18, 0.55); }
     #reader { width: 100%; height: 100%; border-radius: 8px; overflow: hidden; }
     #reader video { object-fit: cover !important; }
     
@@ -44,7 +61,30 @@
     .gps-title { font-size: 20px; font-weight: bold; color: #e74c3c; margin-bottom: 10px; }
     .gps-desc { font-size: 14px; color: #ecf0f1; line-height: 1.4; }
 
-    .btn-kamera { background-color: #2980b9; color: white; border: none; padding: 12px 20px; font-size: 15px; border-radius: 8px; cursor: pointer; margin-top: 15px; font-weight: bold; width: 100%; max-width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: 0.2s; }
+    /* TOMBOL AKSI */
+    .btn-sakit {
+      background-color: #d97706;
+      color: #ffffff;
+      border: 2px solid #fbbf24;
+      padding: 12px 20px;
+      font-size: 15px;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 14px;
+      font-weight: bold;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+      transition: 0.2s;
+    }
+    .btn-sakit.aktif {
+      background-color: #c0392b;
+      border-color: #fca5a5;
+    }
+    .btn-sakit:active { transform: translateY(2px); }
+    .btn-sakit:disabled { background-color: #7f8c8d; border-color: #95a5a6; cursor: not-allowed; }
+
+    .btn-kamera { background-color: #2980b9; color: white; border: none; padding: 12px 20px; font-size: 15px; border-radius: 8px; cursor: pointer; margin-top: 10px; font-weight: bold; width: 100%; max-width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: 0.2s; }
     .btn-kamera:active { background-color: #1f6391; transform: translateY(2px); }
     .btn-kamera:disabled { background-color: #7f8c8d; cursor: not-allowed; }
     
@@ -61,13 +101,14 @@
     .alert-desc { font-size: 16px; opacity: 0.9; line-height: 1.5; }
     
     .bg-green { background-color: #27ae60; }
+    .bg-amber { background-color: #d97706; }
     .bg-red { background-color: #c0392b; }
     .bg-blue { background-color: #2980b9; }
 
     .spinner { border: 6px solid rgba(255,255,255,0.3); border-top: 6px solid #ffffff; border-radius: 50%; width: 70px; height: 70px; animation: spin 1s linear infinite; margin-bottom: 20px; }
     
     @keyframes popIn { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+    @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.65; } 100% { opacity: 1; } }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     .animate-pulse-icon { animation: pulse 1s infinite; }
   </style>
@@ -79,6 +120,11 @@
   <div id="offline-badge">Koneksi Terputus - Mode Offline</div>
   <button id="sync-btn" onclick="syncData()">🔄 Sinkronisasi Data Tertunda (<span id="queue-count">0</span>)</button>
   
+  <div id="sakit-banner">
+    🤒 MODE PULANG SAKIT AKTIF<br>
+    <span style="font-size:11px; font-weight:normal;">Silakan scan kartu siswa yang sakit. Setelah berhasil, mode otomatis kembali normal.</span>
+  </div>
+
   <div id="reader-container">
     <!-- OVERLAY GPS -->
     <div id="gps-overlay">
@@ -89,6 +135,7 @@
     <div id="reader"></div>
   </div>
   
+  <button class="btn-sakit" id="btn-mode-sakit" onclick="toggleModeSakit()" disabled>🤒 Izin Pulang (Sakit)</button>
   <button class="btn-kamera" id="btn-ganti-kamera" onclick="gantiKamera()" disabled>🔄 Ganti Kamera</button>
 
   <div class="footer-status">
@@ -114,6 +161,10 @@
     let isScanning = false;
     let isSyncing = false; 
     let isKameraAktif = false;
+
+    // MODE SCAN: 'UMUM' atau 'SAKIT'
+    let modeScan = "UMUM";
+    let timerResetModeSakit = null;
     
     let scanQueue = JSON.parse(localStorage.getItem('absenQueueSmart')) || [];
     let recentScans = JSON.parse(localStorage.getItem('recentScansKiosk')) || {};
@@ -128,6 +179,46 @@
     }
     window.addEventListener('touchstart', unlockAudio, { once: true });
     window.addEventListener('click', unlockAudio, { once: true });
+
+    // ==========================================
+    // KONTROL MODE PULANG SAKIT
+    // ==========================================
+    function toggleModeSakit() {
+        if (modeScan === "UMUM") {
+            aktifkanModeSakit();
+        } else {
+            resetKeModeUmum();
+        }
+    }
+
+    function aktifkanModeSakit() {
+        modeScan = "SAKIT";
+        document.getElementById('sakit-banner').style.display = 'block';
+        document.getElementById('reader-container').classList.add('mode-sakit');
+        const btn = document.getElementById('btn-mode-sakit');
+        btn.classList.add('aktif');
+        btn.innerText = "✖ Batalkan Mode Pulang Sakit";
+        document.getElementById('db-status').innerText = "Mode Aktif: Izin Pulang Sakit (Otomatis kembali normal setelah scan).";
+
+        // Pengaman: otomatis kembali ke mode umum jika 30 detik tidak ada yang scan
+        clearTimeout(timerResetModeSakit);
+        timerResetModeSakit = setTimeout(() => {
+            if (modeScan === "SAKIT" && !isScanning) {
+                resetKeModeUmum();
+            }
+        }, 30000);
+    }
+
+    function resetKeModeUmum() {
+        modeScan = "UMUM";
+        clearTimeout(timerResetModeSakit);
+        document.getElementById('sakit-banner').style.display = 'none';
+        document.getElementById('reader-container').classList.remove('mode-sakit');
+        const btn = document.getElementById('btn-mode-sakit');
+        btn.classList.remove('aktif');
+        btn.innerText = "🤒 Izin Pulang (Sakit)";
+        document.getElementById('db-status').innerText = "Sistem Siap Digunakan.";
+    }
     
     function updateQueueUI() {
       if (isSyncing) return;
@@ -164,27 +255,22 @@
     // ==========================================
     function getLocation() {
       if (navigator.geolocation) {
-        // Gunakan watchPosition agar GPS terus memperbarui diri
         navigator.geolocation.watchPosition(
-          // KETIKA GPS BERHASIL MENGUNCI LOKASI
           function(p) {
             userLat = p.coords.latitude; 
             userLng = p.coords.longitude;
             
-            // Hapus layar overlay peringatan
             document.getElementById('gps-overlay').style.display = 'none';
             document.getElementById('btn-ganti-kamera').disabled = false;
+            document.getElementById('btn-mode-sakit').disabled = false;
             
-            // Ubah teks status di bawah
             document.getElementById('gps-status').innerText = "GPS: " + userLat.toFixed(5) + ", " + userLng.toFixed(5);
-            document.getElementById('gps-status').style.color = "#2ecc71"; // Warna hijau sukses
+            document.getElementById('gps-status').style.color = "#2ecc71";
             
-            // Nyalakan kamera HANYA jika kamera belum pernah dinyalakan
             if (!isKameraAktif) {
                 mulaiKamera();
             }
           }, 
-          // KETIKA GPS ERROR / DITOLAK
           function(e) { 
             const gpsTitle = document.getElementById('gps-overlay-title');
             const gpsDesc = document.getElementById('gps-overlay-desc');
@@ -200,10 +286,9 @@
                 gpsStatus.innerText = "GPS: Gagal mencari satelit"; 
             }
             
-            gpsStatus.style.color = "#e74c3c"; // Warna merah
+            gpsStatus.style.color = "#e74c3c";
             document.getElementById('gps-overlay').style.display = 'flex';
           }, 
-          // PENGATURAN GPS
           { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
       } else {
@@ -214,12 +299,12 @@
       }
     }
 
-    function tampilkanSuksesLayarPenuh(judul, pesanHTML) {
+    function tampilkanSuksesLayarPenuh(judul, pesanHTML, bgClass = "bg-green", iconHtml = "✅") {
         const alertBox = document.getElementById('fullscreen-alert');
-        alertBox.className = "bg-green"; alertBox.style.display = "flex";
-        document.getElementById('alert-icon').innerHTML = "✅"; document.getElementById('alert-icon').className = "alert-icon animate-pulse-icon";
+        alertBox.className = bgClass; alertBox.style.display = "flex";
+        document.getElementById('alert-icon').innerHTML = iconHtml; document.getElementById('alert-icon').className = "alert-icon animate-pulse-icon";
         document.getElementById('alert-title').innerHTML = judul; document.getElementById('alert-desc').innerHTML = pesanHTML;
-        setTimeout(() => { alertBox.style.display = "none"; isScanning = false; }, 1000); 
+        setTimeout(() => { alertBox.style.display = "none"; isScanning = false; }, 1200); 
     }
 
     function tampilkanErrorLayarPenuh(pesanHTML) {
@@ -234,7 +319,7 @@
         const alertBox = document.getElementById('fullscreen-alert');
         alertBox.className = "bg-blue"; alertBox.style.display = "flex";
         document.getElementById('alert-icon').innerHTML = `<div class="spinner"></div>`; document.getElementById('alert-icon').className = "";
-        document.getElementById('alert-title').innerHTML = "MEMPROSES DATA..."; document.getElementById('alert-desc').innerHTML = `Mengirim ke Server.<br>Pastikan Namamu Tampil Dilayar Hijau.`;
+        document.getElementById('alert-title').innerHTML = "MEMPROSES DATA..."; document.getElementById('alert-desc').innerHTML = `Mengirim ke Server.<br>Pastikan Namamu Tampil Dilayar.`;
     }
 
     function playBeep() {
@@ -253,7 +338,6 @@
     }
 
     function onScanSuccess(decodedText) {
-      // CEK KEAMANAN GANDA: Pastikan Koordinat tidak kosong saat scan terjadi
       if(!userLat || !userLng) {
           tampilkanErrorLayarPenuh(`Menunggu Satelit GPS...<br><span style='font-size:12px;'>Mohon tunggu hingga indikator GPS berwarna hijau.</span>`);
           return;
@@ -273,14 +357,17 @@
           finalId = cleanId.replace(/\s+/g, '');
       }
 
+      const modeSaatIni = modeScan; // Tangkap mode saat scan terjadi
       const now = new Date();
       if (recentScans[finalId]) {
           const lastScan = new Date(recentScans[finalId]);
           const diffMs = now.getTime() - lastScan.getTime();
           const diffMins = diffMs / 1000 / 60;
           
-          if (diffMins < 15) {
-              const sisaWaktu = Math.ceil(15 - diffMins);
+          // Mode Pulang Sakit hanya butuh jeda 1 menit; Mode Umum tetap 15 menit
+          const batasMenit = (modeSaatIni === "SAKIT") ? 1 : 15;
+          if (diffMins < batasMenit) {
+              const sisaWaktu = Math.ceil(batasMenit - diffMins);
               tampilkanErrorLayarPenuh(`Anda Baru Saja Melakukan Scan.<br><br><span style='font-size:13px; opacity:0.8;'>Sistem menolak scan ganda untuk mencegah data dobel.<br>Silakan tunggu ${sisaWaktu} menit lagi.</span>`);
               return; 
           }
@@ -293,11 +380,22 @@
                             now.getMinutes().toString().padStart(2, '0') + ":" + 
                             now.getSeconds().toString().padStart(2, '0');
 
-      const dataScan = { id: finalId, lat: userLat, lng: userLng, waktu_scan: jamScanClient };
+      const dataScan = {
+        id: finalId,
+        lat: userLat,
+        lng: userLng,
+        waktu_scan: jamScanClient,
+        mode: modeSaatIni
+      };
 
       if (!navigator.onLine) {
          simpanKeAntrean(dataScan);
-         tampilkanSuksesLayarPenuh("TERSIMPAN OFFLINE", `QR Code terbaca.<br>Data akan dikirim ke server saat sinyal pulih.`);
+         if (modeSaatIni === "SAKIT") {
+           resetKeModeUmum();
+           tampilkanSuksesLayarPenuh("PULANG SAKIT (OFFLINE)", `QR Code terbaca.<br>Data akan dikirim ke server saat sinyal pulih.`, "bg-amber", "🤒");
+         } else {
+           tampilkanSuksesLayarPenuh("TERSIMPAN OFFLINE", `QR Code terbaca.<br>Data akan dikirim ke server saat sinyal pulih.`);
+         }
       } else {
          kirimKeServer(dataScan);
       }
@@ -314,8 +412,11 @@
     function kirimKeServer(dataScan) {
       tampilkanLoadingLayarPenuh(); 
       const params = new URLSearchParams();
-      params.append("id", dataScan.id); params.append("lat", dataScan.lat);
-      params.append("lng", dataScan.lng); params.append("waktu_scan", dataScan.waktu_scan);
+      params.append("id", dataScan.id);
+      params.append("lat", dataScan.lat);
+      params.append("lng", dataScan.lng);
+      params.append("waktu_scan", dataScan.waktu_scan);
+      params.append("mode", dataScan.mode || "UMUM");
 
       fetch(urlServer, { method: "POST", body: params })
       .then(res => res.text())
@@ -324,11 +425,23 @@
           if (teksBersih.startsWith("Berhasil|")) {
              let splitPesan = teksBersih.split("|");
              let namaSiswa = splitPesan[1] ? splitPesan[1].trim() : "Siswa";
-             tampilkanSuksesLayarPenuh(
-                 "SUKSES", 
-                 `<span style="font-size:22px; font-weight:bold; display:block; margin: 10px 0; color:#fff; text-transform:uppercase;">${namaSiswa}</span>
-                  <span style="font-size:12px; opacity:0.8;">Waktu Scan: ${dataScan.waktu_scan}</span>`
-             );
+
+             if (dataScan.mode === "SAKIT") {
+               resetKeModeUmum(); // Langsung kembali ke scan umum setelah berhasil
+               tampilkanSuksesLayarPenuh(
+                   "IZIN PULANG SAKIT",
+                   `<span style="font-size:22px; font-weight:bold; display:block; margin: 10px 0; color:#fff; text-transform:uppercase;">${namaSiswa}</span>
+                    <span style="font-size:12px; opacity:0.9;">Tercatat Pulang Sakit • ${dataScan.waktu_scan}</span>`,
+                   "bg-amber",
+                   "🤒"
+               );
+             } else {
+               tampilkanSuksesLayarPenuh(
+                   "SUKSES", 
+                   `<span style="font-size:22px; font-weight:bold; display:block; margin: 10px 0; color:#fff; text-transform:uppercase;">${namaSiswa}</span>
+                    <span style="font-size:12px; opacity:0.8;">Waktu Scan: ${dataScan.waktu_scan}</span>`
+               );
+             }
           } else {
              tampilkanErrorLayarPenuh(`GAGAL MENYIMPAN!<br><span style="font-size:12px;">Pesan Server: ${teksBersih}</span>`);
              delete recentScans[dataScan.id]; localStorage.setItem('recentScansKiosk', JSON.stringify(recentScans));
@@ -336,10 +449,13 @@
       })
       .catch(err => {
           simpanKeAntrean(dataScan);
+          if (dataScan.mode === "SAKIT") resetKeModeUmum();
           tampilkanSuksesLayarPenuh(
-              "SUKSES (OFFLINE)", 
+              dataScan.mode === "SAKIT" ? "PULANG SAKIT (OFFLINE)" : "SUKSES (OFFLINE)", 
               `<span style="font-size:16px; font-weight:bold; display:block; margin: 10px 0;">NISN: ${dataScan.id}</span>
-               <span style="font-size:12px; opacity:0.8;">Disimpan di HP. Dikirim saat sinyal pulih.</span>`
+               <span style="font-size:12px; opacity:0.8;">Disimpan di HP. Dikirim saat sinyal pulih.</span>`,
+              dataScan.mode === "SAKIT" ? "bg-amber" : "bg-green",
+              dataScan.mode === "SAKIT" ? "🤒" : "✅"
           );
       });
     }
@@ -355,8 +471,11 @@
             btn.innerText = `Sedang Sinkron Data.... ${i + 1} dari ${totalData} data sudah terkirim. Harap Tunggu`;
             let dataScan = scanQueue[i];
             const params = new URLSearchParams();
-            params.append("id", dataScan.id); params.append("lat", dataScan.lat);
-            params.append("lng", dataScan.lng); params.append("waktu_scan", dataScan.waktu_scan);
+            params.append("id", dataScan.id);
+            params.append("lat", dataScan.lat);
+            params.append("lng", dataScan.lng);
+            params.append("waktu_scan", dataScan.waktu_scan);
+            params.append("mode", dataScan.mode || "UMUM");
 
             try {
                 const res = await fetch(urlServer, { method: "POST", body: params });
@@ -405,7 +524,6 @@
     window.onload = function() {
       updateQueueUI();
       html5QrcodeScanner = new Html5Qrcode("reader");
-      // PERUBAHAN: Jangan nyalakan kamera di sini. getLocation() yang akan menyalakannya
       getLocation();
     };
   </script>
